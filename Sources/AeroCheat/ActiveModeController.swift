@@ -1,4 +1,5 @@
 import AeroCheatCore
+import AeroCheatUI
 import AppKit
 
 /// Wires the AeroSpace event stream to the classifier, the suggestion policy and the toast.
@@ -6,17 +7,19 @@ import AppKit
 final class ActiveModeController {
     static let defaultsKey = "activeModeEnabled"
     /// Events this soon after our own toast are dropped (binding presses excepted): the toast must not feed itself.
-    /// It only needs to cover the settling after the toast appears, so it stays far below `BubbleStyle.duration`.
+    /// It only needs to cover the settling after the toast appears, so it stays far below the shortest
+    /// configurable display duration (`DisplaySettings.durationRange`).
     private static let selfFeedbackGuard: TimeInterval = 0.5
 
     /// `nil` keeps the choice in memory only (demo mode must not touch the user's preferences).
     private let defaults: UserDefaults?
     private var enabledInMemory = true
+    private let settings: DisplaySettingsModel
     private let source: AeroEventSource
     private let inputProbe: () -> InputRecency
     private let toast = ToastPanel()
     private var classifier = BurstClassifier()
-    private var policy = SuggestionPolicy()
+    private var policy: SuggestionPolicy
     private var resolver = ActionResolver(modes: [])
     private var settleWork: DispatchWorkItem?
     private var toastShownAt: TimeInterval = -.infinity
@@ -31,13 +34,18 @@ final class ActiveModeController {
 
     init(
         defaults: UserDefaults? = .standard,
+        settings: DisplaySettingsModel,
         source: AeroEventSource = AeroSpaceEventStream(),
         inputProbe: @escaping () -> InputRecency = MouseInputProbe.recency
     ) {
         self.defaults = defaults
+        self.settings = settings
+        policy = SuggestionPolicy(limits: settings.settings.policyLimits)
         self.source = source
         self.inputProbe = inputProbe
         source.onEvent = { [weak self] in self?.handle($0) }
+        // The delays apply to the next suggestion; what the policy remembers stays.
+        settings.addObserver { [weak self] in self?.policy.limits = $0.policyLimits }
     }
 
     func startIfEnabled() {
@@ -49,7 +57,7 @@ final class ActiveModeController {
         defaults?.set(enabled, forKey: Self.defaultsKey)
         if enabled {
             // A demo replay starts from a clean slate, or the policy would still remember the last run.
-            if defaults == nil { policy = SuggestionPolicy(); lastSuggestion = nil }
+            if defaults == nil { policy = SuggestionPolicy(limits: settings.settings.policyLimits); lastSuggestion = nil }
             source.start()
         } else {
             shutdown()
@@ -124,9 +132,10 @@ final class ActiveModeController {
     }
 
     private func present(_ suggestion: Suggestion) {
-        guard policy.consider(suggestion) == .show else { return }
+        // A kind switched off in the settings is checked before the policy, so it uses up no delay.
+        guard settings.settings.isEnabled(suggestion.kind), policy.consider(suggestion) == .show else { return }
         lastSuggestion = suggestion
         toastShownAt = ProcessInfo.processInfo.systemUptime
-        toast.show(suggestion)
+        toast.show(suggestion, settings: settings.settings)
     }
 }

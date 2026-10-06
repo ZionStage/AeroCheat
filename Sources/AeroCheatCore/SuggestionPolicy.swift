@@ -27,7 +27,8 @@ public struct SuggestionPolicy {
 
     private let clock: () -> Date
     private let calendar: Calendar
-    private let limits: Limits
+    /// Replaceable at any time (the settings change the delays live); the history stays.
+    public var limits: Limits
 
     private var lastShown: [String: Date] = [:]
     private var lastToast: Date?

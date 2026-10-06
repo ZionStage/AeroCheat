@@ -1,4 +1,5 @@
 import AeroCheatCore
+import AeroCheatUI
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -7,10 +8,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let demo: Bool
     private let model: CheatsheetModel
     private let activeMode: ActiveModeController
+    private let settings: DisplaySettingsModel
     private let activeToggle = NSMenuItem(title: "Active Mode", action: #selector(toggleActiveMode), keyEquivalent: "")
     private let activeStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let lastSuggestion = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let snoozeItem = NSMenuItem(title: "", action: #selector(toggleSnooze), keyEquivalent: "")
+    private lazy var settingsWindow = SettingsWindow(model: settings)
     private lazy var panel: CheatsheetPanel = {
         let panel = CheatsheetPanel(model: model)
         panel.onDismiss = { [weak self] in self?.hidePanel() }
@@ -23,11 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.demo = demo
         if demo {
             let source = DemoEventSource()
+            // Demo shows the user's saved look but never saves a change.
+            settings = DisplaySettingsModel(inMemory: DisplaySettingsStorage().load())
             model = CheatsheetModel(result: DemoScript.sampleConfigResult(), loader: DemoScript.sampleConfigResult)
-            activeMode = ActiveModeController(defaults: nil, source: source, inputProbe: { source.currentInput })
+            activeMode = ActiveModeController(defaults: nil, settings: settings, source: source, inputProbe: { source.currentInput })
         } else {
             model = CheatsheetModel(result: AeroSpaceConfigLoader.load())
-            activeMode = ActiveModeController()
+            settings = DisplaySettingsModel()
+            activeMode = ActiveModeController(settings: settings)
         }
         super.init()
     }
@@ -71,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         snoozeItem.target = self
         [activeToggle, activeStatus, lastSuggestion, snoozeItem].forEach(menu.addItem)
         menu.addItem(.separator())
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
         let quit = NSMenuItem(title: "Quit AeroCheat", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
         menu.delegate = self
@@ -113,6 +122,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if activeMode.snoozedUntil == nil { activeMode.snooze() } else { activeMode.resume() }
         refreshActiveModeItems()
     }
+
+    @objc private func showSettings() { settingsWindow.present() }
 
     @objc private func showFromMenu() { showPanel() }
 

@@ -18,3 +18,13 @@ public struct BubbleContent: Equatable {
         NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
     }
 }
+
+extension BubbleContent {
+    /// The content the settings ask for: modifier keys as icons, or as text glyphs.
+    public init(suggestion: Suggestion, settings: DisplaySettings) {
+        self.init(
+            suggestion: suggestion,
+            symbolAvailable: settings.iconsForModifiers ? BubbleContent.systemSymbolAvailable : { _ in false }
+        )
+    }
+}

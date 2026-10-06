@@ -66,6 +66,13 @@ public enum DemoScript {
         }
     }
 
+    /// The suggestion of the settings window's Preview button: the sample config's workspace 2 binding, with
+    /// the toggle-back hint, so the preview shows the whole bubble.
+    public static func previewSuggestion() -> Suggestion? {
+        guard case .loaded(_, let modes) = sampleConfigResult() else { return nil }
+        return ActionResolver(modes: modes).suggestion(for: MouseSwitch(from: "1", to: "2", returnsToPrevious: true))
+    }
+
     /// Played in order. The pauses keep clear of the policy limits on purpose: a bubble every 5 s at most
     /// and the same suggestion once per 30 s, so scenario 3 is rate limited and scenario 5 waits it out.
     public static let scenarios: [DemoScenario] = [

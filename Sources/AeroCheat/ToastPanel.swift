@@ -7,11 +7,10 @@ import SwiftUI
 /// the mouse, so showing it cannot move focus (which would make AeroSpace emit events and feed back into
 /// active mode).
 final class ToastPanel: NSPanel {
-    private let style: BubbleStyle
+    private var fadeOutDuration = BubbleStyle().fadeOutDuration
     private var hideWork: DispatchWorkItem?
 
-    init(style: BubbleStyle = BubbleStyle()) {
-        self.style = style
+    init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 360, height: 56),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -32,8 +31,11 @@ final class ToastPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    func show(_ suggestion: Suggestion) {
-        let hosting = NSHostingView(rootView: BubbleView(content: BubbleContent(suggestion: suggestion), style: style))
+    /// Shows `suggestion` with the look and position `settings` describe, read afresh on every call.
+    func show(_ suggestion: Suggestion, settings: DisplaySettings) {
+        let style = BubbleStyle(settings: settings)
+        fadeOutDuration = style.fadeOutDuration
+        let hosting = NSHostingView(rootView: BubbleView(content: BubbleContent(suggestion: suggestion, settings: settings), style: style))
         let size = hosting.fittingSize
         contentView = hosting
         setContentSize(size)
@@ -45,7 +47,7 @@ final class ToastPanel: NSPanel {
         orderFrontRegardless()
         let work = DispatchWorkItem { [weak self] in
             NSAnimationContext.runAnimationGroup({ context in
-                context.duration = self?.style.fadeOutDuration ?? 0
+                context.duration = self?.fadeOutDuration ?? 0
                 self?.animator().alphaValue = 0
             }, completionHandler: { self?.orderOut(nil) })
         }

@@ -21,14 +21,15 @@ public struct BubbleView: View {
                     }
                 }
             }
-                .font(.system(.title3, design: .rounded).weight(.semibold))
+                .font(.system(size: style.keyFontSize, weight: .semibold, design: .rounded))
+                .foregroundStyle(style.keycapStyle)
                 .padding(.horizontal, style.keycapPadding.width)
                 .padding(.vertical, style.keycapPadding.height)
                 .background(RoundedRectangle(cornerRadius: style.keycapCornerRadius).fill(style.keycapFill))
             VStack(alignment: .leading, spacing: 1) {
-                Text(content.title).font(.callout)
+                Text(content.title).font(.system(size: style.titleFontSize)).foregroundStyle(style.titleStyle)
                 if let hint = content.hint {
-                    Text(hint).font(.caption).foregroundStyle(style.hintStyle)
+                    Text(hint).font(.system(size: style.hintFontSize)).foregroundStyle(style.hintStyle)
                 }
             }
         }
@@ -36,5 +37,6 @@ public struct BubbleView: View {
         .padding(.vertical, style.padding.height)
         .background(style.background, in: RoundedRectangle(cornerRadius: style.cornerRadius))
         .fixedSize()
+        .opacity(style.opacity)
     }
 }

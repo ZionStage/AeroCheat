@@ -6,7 +6,7 @@ This is a proof of concept: the menu bar app, the cheatsheet panel, and an activ
 
 ## What it does
 
-- Lives in the menu bar (no Dock icon). The menu offers **Show Cheatsheet**, **Reload AeroSpace Config**, the active mode controls (below) and **Quit AeroCheat**.
+- Lives in the menu bar (no Dock icon). The menu offers **Show Cheatsheet**, **Reload AeroSpace Config**, the active mode controls (below), **Settings…** and **Quit AeroCheat**.
 - A global hotkey toggles a floating cheatsheet panel above other windows. **Esc** or pressing the hotkey again closes it.
 - The panel lists the bindings of your AeroSpace config, grouped by mode (`[mode.<name>.binding]`), with modifiers shown as ⌃ ctrl, ⌥ alt, ⇧ shift, ⌘ cmd. A search field filters by key, modifier name, or command.
 - The config is read at launch (and on **Reload AeroSpace Config**) from `~/.aerospace.toml`, falling back to `~/.config/aerospace/aerospace.toml`. Symlinks are followed. The file is only ever read, never written.
@@ -18,7 +18,7 @@ This is a proof of concept: the menu bar app, the cheatsheet panel, and an activ
 
 ## Active mode
 
-While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, a Dock icon whose app lives on another workspace, or a window of another workspace in Mission Control) and shows a small bubble at the top right of the screen, below the menu bar and SketchyBar (clear of the window close and minimise buttons), with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click or a click that opens an app on another workspace.
+While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, a Dock icon whose app lives on another workspace, or a window of another workspace in Mission Control) and shows a small bubble, by default at the top right of the screen below the menu bar and SketchyBar (clear of the window close and minimise buttons; [Settings](#settings) moves it), with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click or a click that opens an app on another workspace.
 
 It also notices when a click moves focus to **another window of the same workspace** (typically a window in Mission Control, or in a Dock window list, reaching a window hidden behind others) and suggests the focus shortcuts along the layout of that workspace: `focus left` with "or ⌃⌥ L to focus right" for a horizontal layout, `focus up` and `focus down` for a vertical one. The pair is taken from your config (whichever of the two you bound; the first binding in file order when several do the same). The bubble stays silent when the config has no matching `focus` binding, for floating windows, for macOS native-fullscreen windows and Spaces, and for a click on the window that is already focused. A plain click on a visible tiled window is also silent: the pointer lands inside the window it focuses. In accordion layouts windows overlap, so a click that changes window there is always taken as indirect.
 
@@ -28,12 +28,12 @@ Switching with the keyboard (your AeroSpace bindings), with Cmd-Tab (a key press
 
 1. Make sure AeroSpace 0.21.0-Beta or newer is running (`aerospace --version`).
 2. `swift run AeroCheat`, then open the menu bar item and tick **Active Mode**. It is off by default; the choice is saved in `UserDefaults`.
-3. Click a workspace item in your bar, a Dock icon of an app on another workspace, or (three-finger swipe up) a window of another workspace in Mission Control; in an accordion workspace, click another window of it in Mission Control. The bubble appears within a fraction of a second and stays for 4 seconds, then fades.
+3. Click a workspace item in your bar, a Dock icon of an app on another workspace, or (three-finger swipe up) a window of another workspace in Mission Control; in an accordion workspace, click another window of it in Mission Control. The bubble appears within a fraction of a second and stays for 4 seconds (by default), then fades.
 4. Press the suggested shortcut instead: no bubble, and that shortcut is muted for the rest of the day.
 
 The menu shows the connection state (for example "AeroSpace not found", "AeroSpace 0.20.x is too old" or "AeroSpace is not running, retrying…"), a **Last suggestion** line and **Snooze Suggestions for 1 Hour**. The connection is re-established with a growing delay if AeroSpace exits or restarts.
 
-To keep it quiet: the same suggestion repeats at most every 30 s, at most one bubble appears every 5 s, a shortcut you press after a suggestion is muted for the day, and a suggestion ignored three times is muted for the day too.
+To keep it quiet (these are the defaults, see [Settings](#settings)): the same suggestion repeats at most every 30 s, at most one bubble appears every 5 s, a shortcut you press after a suggestion is muted for the day, and a suggestion ignored three times is muted for the day too.
 
 ### How it works, and why it needs no permission
 
@@ -44,6 +44,23 @@ None of this needs Accessibility, Input Monitoring or Screen Recording: the even
 Out of scope for now: suggestions for a direct click on a visible window, telling a Mission Control click from a Dock click or from a click that opens an app (so the wording never mentions Mission Control), choosing a single focus direction, drag and resize hints, Cmd-Tab suggestions, binding modes other than `main`, and multiple monitors.
 
 Known limits of the same-workspace case: a click on a Dock icon or a menu item that opens or raises a window of the same workspace is indistinguishable from a window click and shows the focus suggestion; in a tiled layout a Mission Control thumbnail can sit over the window's real frame, which reads as a direct click and stays silent; in an accordion layout a click that closes a window or opens one can look like an indirect click. Closing a window (focus falls to a neighbour) and opening a window from an empty workspace stay silent.
+
+## Settings
+
+**Settings…** in the menu bar menu opens a window that configures the bubble and when it appears. Every change applies at once, without restarting, and is saved in `UserDefaults` (one `display.*` entry per setting). The defaults are the behaviour described above, so nothing changes until you change something.
+
+| Group | What you can set |
+|-------|------------------|
+| Position | Where the bubble sits, on a 3x3 grid like the screen: the four corners, the middle of each edge and the centre (default: top right). Horizontal and vertical margins (default 16 pt and 80 pt) keep it clear of the menu bar, SketchyBar and window buttons; the margin is measured from the edge the anchor is on and ignored along a centred axis. The bubble always stays inside the visible frame. |
+| Look | Background, text and icon/key colours (each either the system look or a picked colour), overall opacity (30–100 %), size (75–175 %, scales fonts, icons and padding), how long it stays (1–30 s, default 4). |
+| Delays | Minimum time between any two tips (0–600 s, default 5) and between two identical tips (0–3600 s, default 30). |
+| Content | Modifier keys as icons or as text glyphs, and which kinds of suggestions are on (workspace switches, window focus). |
+
+**Reset to defaults** restores everything. **Preview** shows the bubble with the current settings, using the demo script's sample suggestion and the real bubble view, so you can tune the position and colours without waiting for a mouse switch. Values outside their range are clamped, and a corrupt stored value falls back to its default.
+
+Behind it: `DisplaySettings` (UI-free, in `AeroCheatCore`) holds the values, their ranges and the policy delays; `DisplaySettingsStorage` persists them; `BubbleStyle(settings:)` maps them to the bubble; `SettingsView` is the window. To add a kind of suggestion, add a case to `SuggestionKind` and a branch in `Suggestion.kind`: the window lists every case, so it needs no change. In demo mode the window edits your saved look in memory only, nothing is written.
+
+Needs no permission. The window and the live look are verified by unit tests and offscreen renderings only; try the window by hand with `swift run AeroCheat --demo` and the **Preview** button.
 
 ## Demo mode and offscreen tests
 
@@ -57,17 +74,17 @@ swift run AeroCheat --demo
 
 Plays a short script of fixture events (about 35 s) instead of the real AeroSpace stream: a mouse switch (bubble), a keyboard switch (nothing), the same mouse switch repeated (rate limited, nothing), then two more mouse switches, the last one with the toggle-back hint. The events go through the same burst classifier, action resolver, suggestion policy and bubble as the real mode; only their source differs. Each step is logged with what you should see.
 
-Demo mode never starts `aerospace subscribe`, never reads `~/.aerospace.toml` (a built-in sample config stands in, also for the cheatsheet) and never writes your preferences. Active Mode is on from the start; untick and tick it in the menu to replay.
+Demo mode never starts `aerospace subscribe`, never reads `~/.aerospace.toml` (a built-in sample config stands in, also for the cheatsheet) and never writes your preferences (it does read your saved display settings, so the bubble looks the way you configured it). Active Mode is on from the start; untick and tick it in the menu to replay.
 
 The script is `DemoScript.scenarios` in [`Sources/AeroCheatCore/DemoScript.swift`](Sources/AeroCheatCore/DemoScript.swift), a list of scenarios (events, pause before it, expected outcome). `DemoScriptTests` replays it through the real pipeline with a simulated clock and fails if a scenario does not do what it says, so add a scenario to the list and the test covers it.
 
 ### Offscreen rendering tests
 
-The bubble (`BubbleView`) and the value type that configures it (`BubbleStyle`: corner, margins, duration, sizes, colours; the shipped values are the defaults, top right) live in the `AeroCheatUI` target. `Tests/AeroCheatUITests` renders the view into a bitmap with `NSHostingView` and `cacheDisplay`, with no screen, window server window or permission, and asserts what is deterministic:
+The bubble (`BubbleView`) and the value type that configures it (`BubbleStyle`: anchor, margins, duration, sizes, colours; `DisplaySettings()` maps to the shipped values, top right) live in the `AeroCheatUI` target. `Tests/AeroCheatUITests` renders the view into a bitmap with `NSHostingView` and `cacheDisplay`, with no screen, window server window or permission, and asserts what is deterministic:
 
 - size within bounds, and the hint line making the bubble taller;
-- the origin computed for a fake screen frame (top right by default, top left, a secondary screen), including that the top edge clears SketchyBar (about 74 pt from the screen top);
-- the default 4 s duration and the other defaults;
+- the origin computed for a fake screen frame (the nine anchors, the margins, a secondary screen), including that the top edge clears SketchyBar (about 74 pt from the screen top);
+- the default 4 s duration and the other defaults, and that the settings map to the style (size, opacity, colours, icons versus text), including the extremes staying within bounds;
 - modifier keys drawn as icons, with the glyph text as fallback when an SF Symbol is unavailable, and that the two renderings differ.
 
 There is no golden-image comparison: pixels vary with the OS version, the appearance and the material blur. To look at the result, set `AEROCHEAT_SNAPSHOT_DIR` and the tests also write each rendering there as a PNG:
@@ -101,8 +118,8 @@ None. The hotkey uses the Carbon `RegisterEventHotKey` API, which needs neither 
 
 | Path | Role |
 |------|------|
-| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, window layout, suggestion policy; demo script |
-| `Sources/AeroCheatUI` | The suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView` |
-| `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event sources (real stream, demo), mouse and key recency probe, focused window probe, toast panel |
+| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, window layout, suggestion policy; display settings and their storage; demo script |
+| `Sources/AeroCheatUI` | The suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView`; the live settings model and the settings window's `SettingsView` |
+| `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event sources (real stream, demo), mouse and key recency probe, focused window probe, toast panel, settings window |
 | `Tests/AeroCheatCoreTests` | Unit tests, using `Fixtures/sample-aerospace.toml` and sanitised `golden-replay.jsonl` and `mission-control-replay.jsonl` replays rather than a real config or capture; the demo script replay |
 | `Tests/AeroCheatUITests` | Offscreen rendering and geometry tests of the bubble |
