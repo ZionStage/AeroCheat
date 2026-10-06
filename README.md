@@ -53,6 +53,10 @@ swift test             # unit tests
 
 For a release binary: `swift build -c release`, then run `.build/release/AeroCheat`.
 
+### Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `swift build` and `swift test` on a GitHub-hosted macOS runner for pull requests and pushes to `main`. It is gated to public repositories (a skipped job starts no runner and costs nothing), so it does nothing while this repository is private. Once the repository is public it runs on its own; to run it by hand, use the **Actions** tab (**CI** → **Run workflow**) or `gh workflow run ci.yml`.
+
 ## Permissions
 
 None. The hotkey uses the Carbon `RegisterEventHotKey` API, which needs neither Accessibility nor Input Monitoring, and active mode is permission-free too (see above). The app does not touch the network and reads only your AeroSpace config.

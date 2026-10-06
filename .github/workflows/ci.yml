@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    # Cost guard: GitHub-hosted macOS minutes are billed on private repositories
+    # (and burn the free quota 10x faster than Linux). A job skipped by `if:` never
+    # starts a runner and is not billed, so this workflow does nothing until the
+    # repository is made public, where standard runners are free.
+    if: ${{ !github.event.repository.private }}
+    # Pinned image instead of macos-latest so a toolchain bump never lands silently.
+    # macos-15 ships Xcode 16 (Swift 6), which builds our tools-version 5.9 package
+    # with a macOS 13 deployment target.
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build
+      - run: swift test
