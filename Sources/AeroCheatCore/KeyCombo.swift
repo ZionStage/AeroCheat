@@ -64,3 +64,10 @@ public struct KeyCombo: Equatable {
         "keypadequals": "Num =", "keypadenter": "Num ↩",
     ]
 }
+
+extension KeyCombo {
+    /// Order- and case-insensitive identity (`alt-ctrl-3` and `ctrl-alt-3` match), unlike `==`, which also compares `raw`.
+    public var canonical: String {
+        (modifiers.map(\.rawValue) + [key.lowercased()]).joined(separator: "-")
+    }
+}
