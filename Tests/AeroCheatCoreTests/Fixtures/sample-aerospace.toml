@@ -1,0 +1,27 @@
+# Sample AeroSpace config used by the unit tests.
+config-version = 2
+start-at-login = true
+persistent-workspaces = ["1", "2",
+    "3"]   # multi-line array with a trailing comment
+
+[gaps]
+inner.horizontal = 8
+outer.top = 52
+
+[mode.main.binding]
+# Focus
+alt-h = 'focus left'
+alt-j = 'focus down'
+
+ctrl-alt-shift-slash = "layout tiles horizontal vertical"   # trailing comment
+cmd-shift-1 = 'move-node-to-workspace 1'
+alt-tab = 'workspace-back-and-forth'
+alt-shift-semicolon = ['mode service']
+
+[mode.service.binding]
+esc = ['reload-config', 'mode main']
+r = ['flatten-workspace-tree', 'mode main']   # reset layout
+
+[[on-window-detected]]
+if.app-id = 'com.apple.finder'
+run = 'layout floating'
