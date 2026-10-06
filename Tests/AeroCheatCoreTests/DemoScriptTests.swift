@@ -41,6 +41,9 @@ final class DemoScriptTests: XCTestCase {
                     case .suppressed(let reason):
                         expectation = .silent("\(reason)")
                     }
+                case .mouseFocus:
+                    // Needs the layout probe, which the demo script does not simulate.
+                    expectation = .silent("focus")
                 case .ignored(let reason):
                     expectation = .silent("\(reason)")
                 }

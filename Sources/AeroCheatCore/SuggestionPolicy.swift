@@ -34,6 +34,8 @@ public struct SuggestionPolicy {
     private var pending: [String: Date] = [:]
     private var ignoredCount: [String: Int] = [:]
     private var mutedOn: [String: Date] = [:]
+    /// Keys of the second binding of a pair, mapped to the key of the suggestion they belong to.
+    private var pairedWith: [String: String] = [:]
     public private(set) var snoozedUntil: Date?
 
     public init(limits: Limits = Limits(), calendar: Calendar = .current, clock: @escaping () -> Date = Date.init) {
@@ -62,15 +64,18 @@ public struct SuggestionPolicy {
         if let last = lastToast, now.timeIntervalSince(last) < limits.minimumToastInterval { return .suppressed(.rateLimited) }
 
         lastShown[key] = now
+        pairedWith[key] = nil
+        for related in suggestion.relatedKeys where related != key { pairedWith[related] = key }
         lastToast = now
         pending[key] = now
         return .show
     }
 
-    /// The user pressed a binding (a `binding-triggered` event). If it was suggested, they have learned it.
+    /// The user pressed a binding (a `binding-triggered` event). If it was suggested, or is the other half of a suggested pair, they have learned it.
     public mutating func recordKeyboard(binding raw: String) {
         let now = clock()
-        let key = KeyCombo(raw: raw).canonical
+        let pressed = KeyCombo(raw: raw).canonical
+        let key = pairedWith[pressed] ?? pressed
         expirePending(now: now)
         guard lastShown[key] != nil else { return }
         pending[key] = nil

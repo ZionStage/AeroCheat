@@ -134,4 +134,48 @@ final class SuggestionPolicyTests: XCTestCase {
         policy.resume()
         XCTAssertEqual(policy.consider(try suggestion("1")), .show)
     }
+
+    // MARK: focus suggestions share the policy
+
+    private func focusSuggestion() throws -> Suggestion {
+        let modes = try AeroSpaceConfig.parse("""
+        [mode.main.binding]
+        ctrl-alt-1 = 'workspace 1'
+        ctrl-alt-h = 'focus left'
+        ctrl-alt-l = 'focus right'
+        """)
+        let click = FocusSwitch(windowId: 2, workspace: "1", previousWindowId: 1)
+        return try XCTUnwrap(ActionResolver(modes: modes).suggestion(for: click, layout: .accordion(.horizontal), windowFrame: nil))
+    }
+
+    func testFocusSuggestionHasTheSameCooldownAndRateLimit() throws {
+        let clock = Clock()
+        var policy = makePolicy(clock)
+        let focus = try focusSuggestion()
+        XCTAssertEqual(policy.consider(focus), .show)
+        clock.advance(10)
+        XCTAssertEqual(policy.consider(focus), .suppressed(.cooldown))
+        // Another suggestion within 5 s of the last bubble is rate limited, whatever its trigger.
+        clock.advance(-6)
+        XCTAssertEqual(policy.consider(try suggestion("1")), .suppressed(.rateLimited))
+    }
+
+    func testPressingEitherBindingOfAPairMutesIt() throws {
+        for pressed in ["ctrl-alt-h", "ctrl-alt-l"] {
+            let clock = Clock()
+            var policy = makePolicy(clock)
+            let focus = try focusSuggestion()
+            XCTAssertEqual(policy.consider(focus), .show)
+            policy.recordKeyboard(binding: pressed)
+            clock.advance(60)
+            XCTAssertEqual(policy.consider(focus), .suppressed(.mutedToday), pressed)
+        }
+    }
+
+    func testPressingTheCompanionBeforeAnySuggestionDoesNotMute() throws {
+        let clock = Clock()
+        var policy = makePolicy(clock)
+        policy.recordKeyboard(binding: "ctrl-alt-l")
+        XCTAssertEqual(policy.consider(try focusSuggestion()), .show)
+    }
 }

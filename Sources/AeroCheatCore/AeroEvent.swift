@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// One line of `aerospace subscribe` output, reduced to what active mode needs.
@@ -49,18 +50,36 @@ public struct LineBuffer {
     }
 }
 
-/// How long ago the user last pressed or released the left mouse button (hardware events).
+/// How long ago the user last clicked or typed (hardware events), and where the pointer was.
 public struct InputRecency: Equatable {
     public var sinceLeftMouseDown: TimeInterval
     public var sinceLeftMouseUp: TimeInterval
+    /// Seconds since the last key press, `.infinity` when unknown.
+    public var sinceKeyDown: TimeInterval
+    /// Seconds since the last modifier key change, `.infinity` when unknown.
+    public var sinceFlagsChanged: TimeInterval
+    /// Pointer position in global display coordinates, `nil` when unknown.
+    public var pointer: CGPoint?
 
-    public init(sinceLeftMouseDown: TimeInterval, sinceLeftMouseUp: TimeInterval) {
+    public init(
+        sinceLeftMouseDown: TimeInterval,
+        sinceLeftMouseUp: TimeInterval,
+        sinceKeyDown: TimeInterval = .infinity,
+        sinceFlagsChanged: TimeInterval = .infinity,
+        pointer: CGPoint? = nil
+    ) {
         self.sinceLeftMouseDown = sinceLeftMouseDown
         self.sinceLeftMouseUp = sinceLeftMouseUp
+        self.sinceKeyDown = sinceKeyDown
+        self.sinceFlagsChanged = sinceFlagsChanged
+        self.pointer = pointer
     }
 
     /// No click seen for a long time.
     public static let idle = InputRecency(sinceLeftMouseDown: .infinity, sinceLeftMouseUp: .infinity)
 
     public var sinceLastClick: TimeInterval { min(sinceLeftMouseDown, sinceLeftMouseUp) }
+
+    /// A key or a modifier came after the last click: the click did not cause what followed (Cmd-Tab, a launcher).
+    public var keyFollowedClick: Bool { min(sinceKeyDown, sinceFlagsChanged) < sinceLastClick }
 }

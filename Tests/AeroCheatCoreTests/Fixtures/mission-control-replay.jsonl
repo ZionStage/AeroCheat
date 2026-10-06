@@ -1,0 +1,17 @@
+{"t":100.0,"since":{"down":0.05,"up":0.045,"key":24.8,"flags":24.0},"event":{"_event":"focus-changed","windowId":14,"workspace":"2"}}
+{"t":100.001,"since":{"down":0.05,"up":0.045,"key":24.8,"flags":24.0},"event":{"_event":"focused-workspace-changed","prevWorkspace":"1","workspace":"2"}}
+{"t":109.747,"since":{"down":0.083,"up":0.077,"key":30.054,"flags":29.274},"event":{"_event":"focus-changed","windowId":11,"workspace":"1"}}
+{"t":109.748,"since":{"down":0.083,"up":0.077,"key":30.054,"flags":29.274},"event":{"_event":"focused-workspace-changed","prevWorkspace":"2","workspace":"1"}}
+{"t":114.666,"since":{"down":0.268,"up":0.262,"key":34.973,"flags":34.193},"event":{"_event":"focus-changed","windowId":21,"workspace":"3"}}
+{"t":114.667,"since":{"down":0.268,"up":0.264,"key":34.975,"flags":34.195},"event":{"_event":"focused-workspace-changed","prevWorkspace":"1","workspace":"3"}}
+{"t":120.0,"since":{"down":5.4,"up":5.4,"key":0.03,"flags":0.2},"event":{"_event":"binding-triggered","binding":"ctrl-alt-1","mode":"main"}}
+{"t":120.03,"since":{"down":5.4,"up":5.4,"key":0.06,"flags":0.23},"event":{"_event":"focus-changed","windowId":11,"workspace":"1"}}
+{"t":120.031,"since":{"down":5.4,"up":5.4,"key":0.06,"flags":0.23},"event":{"_event":"focused-workspace-changed","prevWorkspace":"3","workspace":"1"}}
+{"t":130.0,"since":{"down":0.41,"up":0.403,"key":9.9,"flags":9.1},"event":{"_event":"focus-changed","windowId":12,"workspace":"1"}}
+{"t":140.0,"since":{"down":0.61,"up":0.6,"key":0.075,"flags":0.008},"event":{"_event":"focus-changed","windowId":14,"workspace":"2"}}
+{"t":140.001,"since":{"down":0.61,"up":0.6,"key":0.075,"flags":0.008},"event":{"_event":"focused-workspace-changed","prevWorkspace":"1","workspace":"2"}}
+{"t":150.0,"since":{"down":61.8,"up":61.7,"key":0.1,"flags":0.09},"event":{"_event":"focus-changed","windowId":21,"workspace":"3"}}
+{"t":150.001,"since":{"down":61.8,"up":61.7,"key":0.1,"flags":0.09},"event":{"_event":"focused-workspace-changed","prevWorkspace":"2","workspace":"3"}}
+{"t":155.0,"since":{"down":0.2,"up":0.15,"key":20.0,"flags":19.0},"event":{"_event":"focus-changed","windowId":21,"workspace":"3"}}
+{"t":160.0,"since":{"down":0.215,"up":0.211,"key":12.0,"flags":11.0},"event":{"_event":"focus-changed","windowId":11,"workspace":"1"}}
+{"t":160.001,"since":{"down":0.215,"up":0.211,"key":12.0,"flags":11.0},"event":{"_event":"focused-workspace-changed","prevWorkspace":"3","workspace":"1"}}

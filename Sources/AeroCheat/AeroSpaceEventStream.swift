@@ -128,7 +128,7 @@ final class AeroSpaceEventStream {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
-    private static func locateBinary() -> String? {
+    static func locateBinary() -> String? {
         AeroSpaceBinary.candidates(path: ProcessInfo.processInfo.environment["PATH"])
             .first { FileManager.default.isExecutableFile(atPath: $0) }
     }

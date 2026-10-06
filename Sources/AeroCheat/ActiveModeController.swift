@@ -20,6 +20,8 @@ final class ActiveModeController {
     private var resolver = ActionResolver(modes: [])
     private var settleWork: DispatchWorkItem?
     private var toastShownAt: TimeInterval = -.infinity
+    /// Bumped on shutdown so a layout query still running is dropped.
+    private var focusQueryGeneration = 0
 
     private(set) var lastSuggestion: Suggestion?
 
@@ -56,6 +58,7 @@ final class ActiveModeController {
 
     func shutdown() {
         source.stop()
+        focusQueryGeneration += 1
         settleWork?.cancel()
         _ = classifier.flush()
         toast.dismiss()
@@ -95,13 +98,35 @@ final class ActiveModeController {
         case .keyboard(let binding):
             policy.recordKeyboard(binding: binding)
         case .mouse(let mouseSwitch):
-            guard let suggestion = resolver.suggestion(for: mouseSwitch),
-                  policy.consider(suggestion) == .show else { return }
-            lastSuggestion = suggestion
-            toastShownAt = ProcessInfo.processInfo.systemUptime
-            toast.show(suggestion)
+            guard let suggestion = resolver.suggestion(for: mouseSwitch) else { return }
+            present(suggestion)
+        case .mouseFocus(let focus):
+            suggestFocus(focus)
         case .ignored:
             break
         }
+    }
+
+    /// A click moved focus within a workspace. The suggestion depends on the window's layout, which takes one
+    /// read-only `aerospace list-windows` call, made off the main queue and only when the config has a focus binding.
+    private func suggestFocus(_ focus: FocusSwitch) {
+        guard resolver.hasFocusBindings, let binary = AeroSpaceEventStream.locateBinary() else { return }
+        let generation = focusQueryGeneration
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let info = FocusedWindowProbe.info(ofWindow: focus.windowId, previousWindow: focus.previousWindowId, binary: binary)
+            DispatchQueue.main.async {
+                guard let self, self.focusQueryGeneration == generation, let info,
+                      let suggestion = self.resolver.suggestion(for: focus, layout: info.layout, windowFrame: info.frame)
+                else { return }
+                self.present(suggestion)
+            }
+        }
+    }
+
+    private func present(_ suggestion: Suggestion) {
+        guard policy.consider(suggestion) == .show else { return }
+        lastSuggestion = suggestion
+        toastShownAt = ProcessInfo.processInfo.systemUptime
+        toast.show(suggestion)
     }
 }

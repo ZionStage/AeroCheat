@@ -1,8 +1,8 @@
 # AeroCheat
 
-macOS menu bar cheatsheet for [AeroSpace](https://github.com/nikitabobko/AeroSpace) shortcuts, with an active mode that suggests the keyboard shortcut when you switch workspace with the mouse.
+macOS menu bar cheatsheet for [AeroSpace](https://github.com/nikitabobko/AeroSpace) shortcuts, with an active mode that suggests the keyboard shortcut when you switch workspace or window with the mouse.
 
-This is a proof of concept: the menu bar app, the cheatsheet panel, and an active mode limited to mouse-driven workspace switches. The active mode has been unit-tested with synthetic and replayed event streams, but not yet verified by hand against a live AeroSpace.
+This is a proof of concept: the menu bar app, the cheatsheet panel, and an active mode limited to mouse-driven workspace switches and window changes. The active mode has been unit-tested with synthetic and replayed event streams, but not yet verified by hand against a live AeroSpace.
 
 ## What it does
 
@@ -18,15 +18,17 @@ This is a proof of concept: the menu bar app, the cheatsheet panel, and an activ
 
 ## Active mode
 
-While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, or a Dock icon whose app lives on another workspace) and shows a small bubble at the top right of the screen, below the menu bar and SketchyBar (clear of the window close and minimise buttons), with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click.
+While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, a Dock icon whose app lives on another workspace, or a window of another workspace in Mission Control) and shows a small bubble at the top right of the screen, below the menu bar and SketchyBar (clear of the window close and minimise buttons), with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click or a click that opens an app on another workspace.
 
-Switching with the keyboard (your AeroSpace bindings), with Cmd-Tab, or through Spotlight or a script never triggers a suggestion.
+It also notices when a click moves focus to **another window of the same workspace** (typically a window in Mission Control, or in a Dock window list, reaching a window hidden behind others) and suggests the focus shortcuts along the layout of that workspace: `focus left` with "or ⌃⌥ L to focus right" for a horizontal layout, `focus up` and `focus down` for a vertical one. The pair is taken from your config (whichever of the two you bound; the first binding in file order when several do the same). The bubble stays silent when the config has no matching `focus` binding, for floating windows, for macOS native-fullscreen windows and Spaces, and for a click on the window that is already focused. A plain click on a visible tiled window is also silent: the pointer lands inside the window it focuses. In accordion layouts windows overlap, so a click that changes window there is always taken as indirect.
+
+Switching with the keyboard (your AeroSpace bindings), with Cmd-Tab (a key pressed after the click rules the click out), or through Spotlight or a script never triggers a suggestion. A click on a window of another workspace and a click on another window of the same workspace share the cooldown, the rate limit and the muting below; the cooldown applies per binding (for a focus pair, to the first one), and pressing either binding of the pair mutes it.
 
 ### How to try it
 
 1. Make sure AeroSpace 0.21.0-Beta or newer is running (`aerospace --version`).
 2. `swift run AeroCheat`, then open the menu bar item and tick **Active Mode**. It is off by default; the choice is saved in `UserDefaults`.
-3. Click a workspace item in your bar, or a Dock icon of an app on another workspace. The bubble appears within a fraction of a second and stays for 4 seconds, then fades.
+3. Click a workspace item in your bar, a Dock icon of an app on another workspace, or (three-finger swipe up) a window of another workspace in Mission Control; in an accordion workspace, click another window of it in Mission Control. The bubble appears within a fraction of a second and stays for 4 seconds, then fades.
 4. Press the suggested shortcut instead: no bubble, and that shortcut is muted for the rest of the day.
 
 The menu shows the connection state (for example "AeroSpace not found", "AeroSpace 0.20.x is too old" or "AeroSpace is not running, retrying…"), a **Last suggestion** line and **Snooze Suggestions for 1 Hour**. The connection is re-established with a growing delay if AeroSpace exits or restarts.
@@ -35,11 +37,13 @@ To keep it quiet: the same suggestion repeats at most every 30 s, at most one bu
 
 ### How it works, and why it needs no permission
 
-AeroCheat runs `aerospace subscribe --no-send-initial focus-changed focused-workspace-changed binding-triggered mode-changed` as a child process (found in `/opt/homebrew/bin`, `/usr/local/bin`, then `PATH`) and reads its JSON events. AeroSpace emits `binding-triggered` whenever a keyboard binding fires, so a workspace change that arrives without one did not come from your AeroSpace shortcuts. Events less than about 120 ms apart form a burst; a burst with a binding is keyboard and ignored, a burst with a net workspace change and no binding is a candidate. It becomes a mouse action only if the left mouse button went down or up within the last 0.8 s, read with `CGEventSource.secondsSinceLastEventType`.
+AeroCheat runs `aerospace subscribe --no-send-initial focus-changed focused-workspace-changed binding-triggered mode-changed` as a child process (found in `/opt/homebrew/bin`, `/usr/local/bin`, then `PATH`) and reads its JSON events. AeroSpace emits `binding-triggered` whenever a keyboard binding fires, so a workspace change that arrives without one did not come from your AeroSpace shortcuts. Events less than about 120 ms apart form a burst; a burst with a binding is keyboard and ignored, a burst with a net workspace change and no binding is a candidate, and so is a burst of `focus-changed` events alone that moves focus to another window of the same workspace. A candidate becomes a mouse action only if the left mouse button went down or up within the last 0.8 s and no key or modifier came after that click, both read with `CGEventSource.secondsSinceLastEventType`. For a same-workspace candidate AeroCheat also runs the read-only `aerospace list-windows --all --format '%{window-id} %{window-layout}'` once to read the layout of the window that took focus, and for a tiled one compares the pointer position (`CGEvent(source: nil)`) with the window's bounds from the window server.
 
-None of this needs Accessibility, Input Monitoring or Screen Recording: the event stream is a user-level socket behind the `aerospace` CLI, and the click recency counters are not privacy-gated. AeroCheat does not use an event tap or a global `NSEvent` monitor, and it does not post system notifications. It only runs read-only `aerospace` commands (`--version`, `subscribe`) and changes nothing in your AeroSpace or SketchyBar configuration.
+None of this needs Accessibility, Input Monitoring or Screen Recording: the event stream is a user-level socket behind the `aerospace` CLI, and the click recency counters are not privacy-gated. AeroCheat does not use an event tap or a global `NSEvent` monitor, and it does not post system notifications. It only runs read-only `aerospace` commands (`--version`, `subscribe`, `list-windows`) and changes nothing in your AeroSpace or SketchyBar configuration.
 
-Out of scope for now: click-to-focus, drag and resize hints, Cmd-Tab suggestions, filtering notification clicks from Dock clicks, binding modes other than `main`, and multiple monitors.
+Out of scope for now: suggestions for a direct click on a visible window, telling a Mission Control click from a Dock click or from a click that opens an app (so the wording never mentions Mission Control), choosing a single focus direction, drag and resize hints, Cmd-Tab suggestions, binding modes other than `main`, and multiple monitors.
+
+Known limits of the same-workspace case: a click on a Dock icon or a menu item that opens or raises a window of the same workspace is indistinguishable from a window click and shows the focus suggestion; in a tiled layout a Mission Control thumbnail can sit over the window's real frame, which reads as a direct click and stays silent; in an accordion layout a click that closes a window or opens one can look like an indirect click. Closing a window (focus falls to a neighbour) and opening a window from an empty workspace stay silent.
 
 ## Demo mode and offscreen tests
 
@@ -97,8 +101,8 @@ None. The hotkey uses the Carbon `RegisterEventHotKey` API, which needs neither 
 
 | Path | Role |
 |------|------|
-| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, suggestion policy; demo script |
+| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, window layout, suggestion policy; demo script |
 | `Sources/AeroCheatUI` | The suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView` |
-| `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event sources (real stream, demo), mouse recency probe, toast panel |
-| `Tests/AeroCheatCoreTests` | Unit tests, using `Fixtures/sample-aerospace.toml` and a sanitised `golden-replay.jsonl` rather than a real config or capture; the demo script replay |
+| `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event sources (real stream, demo), mouse and key recency probe, focused window probe, toast panel |
+| `Tests/AeroCheatCoreTests` | Unit tests, using `Fixtures/sample-aerospace.toml` and sanitised `golden-replay.jsonl` and `mission-control-replay.jsonl` replays rather than a real config or capture; the demo script replay |
 | `Tests/AeroCheatUITests` | Offscreen rendering and geometry tests of the bubble |

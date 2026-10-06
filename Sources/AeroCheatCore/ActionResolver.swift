@@ -1,12 +1,19 @@
+import CoreGraphics
 import Foundation
+
+public enum FocusDirection: String, Hashable {
+    case left, right, up, down
+}
 
 /// A canonical AeroSpace action, enough to tell which binding performs it.
 public enum Action: Hashable, CustomStringConvertible {
     case workspace(String)
     case workspaceBackAndForth
+    case focus(FocusDirection)
     case other(String)
 
-    /// Canonical form of one command: `--flags` are dropped, `workspace next|prev` stays `other`.
+    /// Canonical form of one command: `--flags` are dropped, `workspace next|prev` stays `other`,
+    /// and so does `focus` with anything but a plain direction (`dfs-next`, a window id).
     public init(command: String) {
         let tokens = command.split(separator: " ").map(String.init)
         guard let head = tokens.first else { self = .other(command); return }
@@ -16,6 +23,8 @@ public enum Action: Hashable, CustomStringConvertible {
             self = .workspace(args[0])
         case "workspace-back-and-forth" where args.isEmpty:
             self = .workspaceBackAndForth
+        case "focus" where args.count == 1 && FocusDirection(rawValue: args[0]) != nil:
+            self = .focus(FocusDirection(rawValue: args[0])!)
         default:
             self = .other(command)
         }
@@ -25,26 +34,67 @@ public enum Action: Hashable, CustomStringConvertible {
         switch self {
         case .workspace(let name): return "workspace \(name)"
         case .workspaceBackAndForth: return "workspace-back-and-forth"
+        case .focus(let direction): return "focus \(direction.rawValue)"
         case .other(let command): return command
         }
     }
 }
 
+/// What made AeroCheat suggest a shortcut; a display can vary per trigger.
+public enum SuggestionTrigger: Equatable {
+    /// A mouse-driven switch to another workspace.
+    case workspaceSwitch
+    /// A mouse-driven focus change to another window of the same workspace.
+    case focusChange
+}
+
 /// What to tell the user after a mouse-driven switch.
 public struct Suggestion: Equatable {
+    /// The second binding of a pair, such as focus right next to focus left.
+    public struct Companion: Equatable {
+        public let action: Action
+        public let binding: Binding
+
+        public init(action: Action, binding: Binding) {
+            self.action = action
+            self.binding = binding
+        }
+    }
+
     public let action: Action
     public let binding: Binding
     /// Binding that toggles back to the previous workspace, when relevant and configured.
     public let backAndForth: Binding?
+    public let companion: Companion?
+    public let trigger: SuggestionTrigger
 
-    /// Identity used by cooldowns and learning.
+    public init(
+        action: Action,
+        binding: Binding,
+        backAndForth: Binding? = nil,
+        companion: Companion? = nil,
+        trigger: SuggestionTrigger = .workspaceSwitch
+    ) {
+        self.action = action
+        self.binding = binding
+        self.backAndForth = backAndForth
+        self.companion = companion
+        self.trigger = trigger
+    }
+
+    /// Identity used by cooldowns and learning: the binding, the first one of a pair.
     public var key: String { binding.combo.canonical }
+    /// Other bindings that perform the suggestion's job; pressing one counts as having learned it.
+    public var relatedKeys: [String] { companion.map { [$0.binding.combo.canonical] } ?? [] }
     public var keys: String { binding.combo.display }
     public var title: String {
         if case .workspace(let name) = action { return "switch to workspace \(name)" }
         return action.description
     }
-    public var hint: String? { backAndForth.map { "or \($0.combo.display) to toggle back" } }
+    public var hint: String? {
+        if let companion { return "or \(companion.binding.combo.display) to \(companion.action.description)" }
+        return backAndForth.map { "or \($0.combo.display) to toggle back" }
+    }
 
     /// One-line form for the menu and logs.
     public var summary: String { "\(keys) — \(title)" }
@@ -76,5 +126,29 @@ public struct ActionResolver {
         guard let binding = index[action] else { return nil }
         let back = mouseSwitch.returnsToPrevious ? index[.workspaceBackAndForth] : nil
         return Suggestion(action: action, binding: binding, backAndForth: back)
+    }
+
+    /// Whether the config binds any focus direction. Without one a focus suggestion is impossible.
+    public var hasFocusBindings: Bool {
+        [FocusDirection.left, .right, .up, .down].contains { index[.focus($0)] != nil }
+    }
+
+    /// The suggestion for a click that moved focus within a workspace, from the layout of the window it landed on.
+    /// `windowFrame` is that window's frame in the same coordinates as `focus.pointer`.
+    /// `nil` (stay silent) when there is no direction to point to or no binding for it, for floating and
+    /// native-fullscreen windows, and for a direct click: in tiles the pointer lands inside the window it focuses.
+    /// Accordion windows overlap, so a click that changes window there cannot have been direct.
+    public func suggestion(for focus: FocusSwitch, layout: WindowLayout, windowFrame: CGRect?) -> Suggestion? {
+        guard let axis = layout.axis else { return nil }
+        if case .tiles = layout {
+            guard let windowFrame, let pointer = focus.pointer, !windowFrame.contains(pointer) else { return nil }
+        }
+        let directions: [FocusDirection] = axis == .horizontal ? [.left, .right] : [.up, .down]
+        let pair = directions.compactMap { direction in
+            index[.focus(direction)].map { (action: Action.focus(direction), binding: $0) }
+        }
+        guard let first = pair.first else { return nil }
+        let companion = pair.dropFirst().first.map { Suggestion.Companion(action: $0.action, binding: $0.binding) }
+        return Suggestion(action: first.action, binding: first.binding, companion: companion, trigger: .focusChange)
     }
 }
