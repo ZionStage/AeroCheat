@@ -18,7 +18,7 @@ This is a proof of concept: the menu bar app, the cheatsheet panel, and an activ
 
 ## Active mode
 
-While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, or a Dock icon whose app lives on another workspace) and shows a small bubble at the top right of the screen, below the menu bar and SketchyBar, with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click.
+While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, or a Dock icon whose app lives on another workspace) and shows a small bubble at the top left of the screen, below the menu bar and SketchyBar, with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click.
 
 Switching with the keyboard (your AeroSpace bindings), with Cmd-Tab, or through Spotlight or a script never triggers a suggestion.
 

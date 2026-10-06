@@ -8,8 +8,8 @@ import SwiftUI
 final class ToastPanel: NSPanel {
     enum Corner { case topLeft, topRight }
 
-    /// Where the bubble sits. Switching to `.topLeft` is the only change needed to move it.
-    static let corner: Corner = .topRight
+    /// Where the bubble sits. Changing this value is the only change needed to move it.
+    static let corner: Corner = .topLeft
     /// Inset from the screen's visible frame. The top inset clears SketchyBar (about 74 pt from the screen top).
     static let margins = NSSize(width: 16, height: 80)
     /// How long the bubble stays up; `ActiveModeController.selfFeedbackGuard` only has to stay well below it.
