@@ -6,11 +6,14 @@ import AppKit
 final class ActiveModeController {
     static let defaultsKey = "activeModeEnabled"
     /// Events this soon after our own toast are dropped (binding presses excepted): the toast must not feed itself.
-    /// It only needs to cover the settling after the toast appears, so it stays far below `ToastPanel.duration`.
+    /// It only needs to cover the settling after the toast appears, so it stays far below `BubbleStyle.duration`.
     private static let selfFeedbackGuard: TimeInterval = 0.5
 
-    private let defaults: UserDefaults
-    private let stream = AeroSpaceEventStream()
+    /// `nil` keeps the choice in memory only (demo mode must not touch the user's preferences).
+    private let defaults: UserDefaults?
+    private var enabledInMemory = true
+    private let source: AeroEventSource
+    private let inputProbe: () -> InputRecency
     private let toast = ToastPanel()
     private var classifier = BurstClassifier()
     private var policy = SuggestionPolicy()
@@ -20,30 +23,39 @@ final class ActiveModeController {
 
     private(set) var lastSuggestion: Suggestion?
 
-    var isEnabled: Bool { defaults.bool(forKey: Self.defaultsKey) }
-    var streamStatus: AeroSpaceEventStream.Status { stream.status }
+    var isEnabled: Bool { defaults?.bool(forKey: Self.defaultsKey) ?? enabledInMemory }
+    var streamStatus: AeroSpaceEventStream.Status { source.status }
     var snoozedUntil: Date? { policy.isSnoozed ? policy.snoozedUntil : nil }
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults? = .standard,
+        source: AeroEventSource = AeroSpaceEventStream(),
+        inputProbe: @escaping () -> InputRecency = MouseInputProbe.recency
+    ) {
         self.defaults = defaults
-        stream.onEvent = { [weak self] in self?.handle($0) }
+        self.source = source
+        self.inputProbe = inputProbe
+        source.onEvent = { [weak self] in self?.handle($0) }
     }
 
     func startIfEnabled() {
-        if isEnabled { stream.start() }
+        if isEnabled { source.start() }
     }
 
     func setEnabled(_ enabled: Bool) {
-        defaults.set(enabled, forKey: Self.defaultsKey)
+        enabledInMemory = enabled
+        defaults?.set(enabled, forKey: Self.defaultsKey)
         if enabled {
-            stream.start()
+            // A demo replay starts from a clean slate, or the policy would still remember the last run.
+            if defaults == nil { policy = SuggestionPolicy(); lastSuggestion = nil }
+            source.start()
         } else {
             shutdown()
         }
     }
 
     func shutdown() {
-        stream.stop()
+        source.stop()
         settleWork?.cancel()
         _ = classifier.flush()
         toast.dismiss()
@@ -66,7 +78,7 @@ final class ActiveModeController {
             guard case .bindingTriggered = event else { return }
         }
         // Sampled when the event arrives, 1–3 ms after the fact, so a click still reads as recent.
-        if let verdict = classifier.ingest(event, at: now, input: MouseInputProbe.recency()) {
+        if let verdict = classifier.ingest(event, at: now, input: inputProbe()) {
             handle(verdict)
         }
         settleWork?.cancel()

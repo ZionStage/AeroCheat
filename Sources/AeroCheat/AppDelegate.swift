@@ -4,8 +4,9 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var hotkey: GlobalHotkey?
-    private let model = CheatsheetModel(result: AeroSpaceConfigLoader.load())
-    private let activeMode = ActiveModeController()
+    private let demo: Bool
+    private let model: CheatsheetModel
+    private let activeMode: ActiveModeController
     private let activeToggle = NSMenuItem(title: "Active Mode", action: #selector(toggleActiveMode), keyEquivalent: "")
     private let activeStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let lastSuggestion = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -15,6 +16,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.onDismiss = { [weak self] in self?.hidePanel() }
         return panel
     }()
+
+    /// In demo mode nothing real is read or started: the sample config replaces `~/.aerospace.toml` and the
+    /// scripted events replace `aerospace subscribe`.
+    init(demo: Bool = false) {
+        self.demo = demo
+        if demo {
+            let source = DemoEventSource()
+            model = CheatsheetModel(result: DemoScript.sampleConfigResult(), loader: DemoScript.sampleConfigResult)
+            activeMode = ActiveModeController(defaults: nil, source: source, inputProbe: { source.currentInput })
+        } else {
+            model = CheatsheetModel(result: AeroSpaceConfigLoader.load())
+            activeMode = ActiveModeController()
+        }
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         hotkey = GlobalHotkey(keyCode: HotkeyConfig.keyCode, modifiers: HotkeyConfig.modifiers) { [weak self] in
@@ -77,7 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func activeStatusText() -> String {
-        guard activeMode.isEnabled else { return "Active mode is off" }
+        guard activeMode.isEnabled else { return demo ? "Demo mode: tick Active Mode to play the script" : "Active mode is off" }
+        if demo { return "Demo mode: playing fixture events, AeroSpace is not used" }
         switch activeMode.streamStatus {
         case .stopped, .connecting: return "Connecting to AeroSpace…"
         case .connected: return "Watching for mouse workspace switches"

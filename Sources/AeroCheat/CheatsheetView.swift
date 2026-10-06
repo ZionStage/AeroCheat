@@ -8,9 +8,14 @@ final class CheatsheetModel: ObservableObject {
     /// Bumped every time the panel is shown so the search field grabs focus again.
     @Published var focusToken = 0
 
-    init(result: ConfigLoadResult) { self.result = result }
+    private let loader: () -> ConfigLoadResult
 
-    func reload() { result = AeroSpaceConfigLoader.load() }
+    init(result: ConfigLoadResult, loader: @escaping () -> ConfigLoadResult = { AeroSpaceConfigLoader.load() }) {
+        self.result = result
+        self.loader = loader
+    }
+
+    func reload() { result = loader() }
 }
 
 struct CheatsheetView: View {

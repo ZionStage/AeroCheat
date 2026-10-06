@@ -1,4 +1,5 @@
 import AeroCheatCore
+import AeroCheatUI
 import AppKit
 import SwiftUI
 
@@ -6,17 +7,11 @@ import SwiftUI
 /// the mouse, so showing it cannot move focus (which would make AeroSpace emit events and feed back into
 /// active mode).
 final class ToastPanel: NSPanel {
-    enum Corner { case topLeft, topRight }
-
-    /// Where the bubble sits. Changing this value is the only change needed to move it.
-    static let corner: Corner = .topLeft
-    /// Inset from the screen's visible frame. The top inset clears SketchyBar (about 74 pt from the screen top).
-    static let margins = NSSize(width: 16, height: 80)
-    /// How long the bubble stays up; `ActiveModeController.selfFeedbackGuard` only has to stay well below it.
-    static let duration: TimeInterval = 4
+    private let style: BubbleStyle
     private var hideWork: DispatchWorkItem?
 
-    init() {
+    init(style: BubbleStyle = BubbleStyle()) {
+        self.style = style
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 360, height: 56),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -38,62 +33,28 @@ final class ToastPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func show(_ suggestion: Suggestion) {
-        let hosting = NSHostingView(rootView: ToastView(suggestion: suggestion))
+        let hosting = NSHostingView(rootView: BubbleView(content: BubbleContent(suggestion: suggestion), style: style))
         let size = hosting.fittingSize
         contentView = hosting
         setContentSize(size)
         if let frame = NSScreen.main?.visibleFrame {
-            let x = Self.corner == .topRight
-                ? frame.maxX - size.width - Self.margins.width
-                : frame.minX + Self.margins.width
-            setFrameOrigin(NSPoint(x: x, y: frame.maxY - size.height - Self.margins.height))
+            setFrameOrigin(style.origin(for: size, in: frame))
         }
         hideWork?.cancel()
         alphaValue = 1
         orderFrontRegardless()
         let work = DispatchWorkItem { [weak self] in
             NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.25
+                context.duration = self?.style.fadeOutDuration ?? 0
                 self?.animator().alphaValue = 0
             }, completionHandler: { self?.orderOut(nil) })
         }
         hideWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.duration, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + style.duration, execute: work)
     }
 
     func dismiss() {
         hideWork?.cancel()
         orderOut(nil)
-    }
-}
-
-private struct ToastView: View {
-    let suggestion: Suggestion
-
-    var body: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 4) {
-                ForEach(Array(suggestion.binding.combo.keyCaps.enumerated()), id: \.offset) { _, cap in
-                    switch cap.rendering(symbolAvailable: { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }) {
-                    case .icon(let name): Image(systemName: name)
-                    case .text(let string): Text(string)
-                    }
-                }
-            }
-                .font(.system(.title3, design: .rounded).weight(.semibold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(RoundedRectangle(cornerRadius: 7).fill(.quaternary))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(suggestion.title).font(.callout)
-                if let hint = suggestion.hint {
-                    Text(hint).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .fixedSize()
     }
 }

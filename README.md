@@ -18,7 +18,7 @@ This is a proof of concept: the menu bar app, the cheatsheet panel, and an activ
 
 ## Active mode
 
-While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, or a Dock icon whose app lives on another workspace) and shows a small bubble at the top left of the screen, below the menu bar and SketchyBar, with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click.
+While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, or a Dock icon whose app lives on another workspace) and shows a small bubble at the top right of the screen, below the menu bar and SketchyBar (clear of the window close and minimise buttons), with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click.
 
 Switching with the keyboard (your AeroSpace bindings), with Cmd-Tab, or through Spotlight or a script never triggers a suggestion.
 
@@ -41,6 +41,37 @@ None of this needs Accessibility, Input Monitoring or Screen Recording: the even
 
 Out of scope for now: click-to-focus, drag and resize hints, Cmd-Tab suggestions, filtering notification clicks from Dock clicks, binding modes other than `main`, and multiple monitors.
 
+## Demo mode and offscreen tests
+
+Neither needs AeroSpace, a permission or a click, so the bubble can be checked without touching a live session.
+
+### Demo mode
+
+```sh
+swift run AeroCheat --demo
+```
+
+Plays a short script of fixture events (about 35 s) instead of the real AeroSpace stream: a mouse switch (bubble), a keyboard switch (nothing), the same mouse switch repeated (rate limited, nothing), then two more mouse switches, the last one with the toggle-back hint. The events go through the same burst classifier, action resolver, suggestion policy and bubble as the real mode; only their source differs. Each step is logged with what you should see.
+
+Demo mode never starts `aerospace subscribe`, never reads `~/.aerospace.toml` (a built-in sample config stands in, also for the cheatsheet) and never writes your preferences. Active Mode is on from the start; untick and tick it in the menu to replay.
+
+The script is `DemoScript.scenarios` in [`Sources/AeroCheatCore/DemoScript.swift`](Sources/AeroCheatCore/DemoScript.swift), a list of scenarios (events, pause before it, expected outcome). `DemoScriptTests` replays it through the real pipeline with a simulated clock and fails if a scenario does not do what it says, so add a scenario to the list and the test covers it.
+
+### Offscreen rendering tests
+
+The bubble (`BubbleView`) and the value type that configures it (`BubbleStyle`: corner, margins, duration, sizes, colours; the shipped values are the defaults, top right) live in the `AeroCheatUI` target. `Tests/AeroCheatUITests` renders the view into a bitmap with `NSHostingView` and `cacheDisplay`, with no screen, window server window or permission, and asserts what is deterministic:
+
+- size within bounds, and the hint line making the bubble taller;
+- the origin computed for a fake screen frame (top right by default, top left, a secondary screen), including that the top edge clears SketchyBar (about 74 pt from the screen top);
+- the default 4 s duration and the other defaults;
+- modifier keys drawn as icons, with the glyph text as fallback when an SF Symbol is unavailable, and that the two renderings differ.
+
+There is no golden-image comparison: pixels vary with the OS version, the appearance and the material blur. To look at the result, set `AEROCHEAT_SNAPSHOT_DIR` and the tests also write each rendering there as a PNG:
+
+```sh
+AEROCHEAT_SNAPSHOT_DIR=/tmp/aerocheat-bubbles swift test --filter AeroCheatUITests
+```
+
 ## Build and run
 
 Requires macOS 13+ and a Swift 5.9+ toolchain (Xcode or Command Line Tools).
@@ -48,7 +79,8 @@ Requires macOS 13+ and a Swift 5.9+ toolchain (Xcode or Command Line Tools).
 ```sh
 swift build            # debug build
 swift run AeroCheat    # launch; look for the keyboard icon in the menu bar
-swift test             # unit tests
+swift run AeroCheat --demo  # same, playing fixture events instead of AeroSpace's (see above)
+swift test             # unit tests and offscreen bubble rendering tests
 ```
 
 For a release binary: `swift build -c release`, then run `.build/release/AeroCheat`.
@@ -65,6 +97,8 @@ None. The hotkey uses the Carbon `RegisterEventHotKey` API, which needs neither 
 
 | Path | Role |
 |------|------|
-| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, suggestion policy |
-| `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event stream, mouse recency probe, toast panel |
-| `Tests/AeroCheatCoreTests` | Unit tests, using `Fixtures/sample-aerospace.toml` and a sanitised `golden-replay.jsonl` rather than a real config or capture |
+| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, suggestion policy; demo script |
+| `Sources/AeroCheatUI` | The suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView` |
+| `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event sources (real stream, demo), mouse recency probe, toast panel |
+| `Tests/AeroCheatCoreTests` | Unit tests, using `Fixtures/sample-aerospace.toml` and a sanitised `golden-replay.jsonl` rather than a real config or capture; the demo script replay |
+| `Tests/AeroCheatUITests` | Offscreen rendering and geometry tests of the bubble |
