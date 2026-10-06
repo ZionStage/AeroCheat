@@ -6,6 +6,7 @@ import AppKit
 final class ActiveModeController {
     static let defaultsKey = "activeModeEnabled"
     /// Events this soon after our own toast are dropped (binding presses excepted): the toast must not feed itself.
+    /// It only needs to cover the settling after the toast appears, so it stays far below `ToastPanel.duration`.
     private static let selfFeedbackGuard: TimeInterval = 0.5
 
     private let defaults: UserDefaults

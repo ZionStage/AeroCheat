@@ -2,10 +2,18 @@ import AeroCheatCore
 import AppKit
 import SwiftUI
 
-/// Discreet bubble at the bottom centre of the screen. Never key, never main, ignores the mouse,
-/// so showing it cannot move focus (which would make AeroSpace emit events and feed back into active mode).
+/// Discreet bubble in a screen corner, like a macOS notification banner. Never key, never main, ignores
+/// the mouse, so showing it cannot move focus (which would make AeroSpace emit events and feed back into
+/// active mode).
 final class ToastPanel: NSPanel {
-    private static let duration: TimeInterval = 2.2
+    enum Corner { case topLeft, topRight }
+
+    /// Where the bubble sits. Switching to `.topLeft` is the only change needed to move it.
+    static let corner: Corner = .topRight
+    /// Inset from the screen's visible frame. The top inset clears SketchyBar (about 74 pt from the screen top).
+    static let margins = NSSize(width: 16, height: 80)
+    /// How long the bubble stays up; `ActiveModeController.selfFeedbackGuard` only has to stay well below it.
+    static let duration: TimeInterval = 4
     private var hideWork: DispatchWorkItem?
 
     init() {
@@ -35,7 +43,10 @@ final class ToastPanel: NSPanel {
         contentView = hosting
         setContentSize(size)
         if let frame = NSScreen.main?.visibleFrame {
-            setFrameOrigin(NSPoint(x: frame.midX - size.width / 2, y: frame.minY + 48))
+            let x = Self.corner == .topRight
+                ? frame.maxX - size.width - Self.margins.width
+                : frame.minX + Self.margins.width
+            setFrameOrigin(NSPoint(x: x, y: frame.maxY - size.height - Self.margins.height))
         }
         hideWork?.cancel()
         alphaValue = 1
@@ -61,7 +72,14 @@ private struct ToastView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(suggestion.keys)
+            HStack(spacing: 4) {
+                ForEach(Array(suggestion.binding.combo.keyCaps.enumerated()), id: \.offset) { _, cap in
+                    switch cap.rendering(symbolAvailable: { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }) {
+                    case .icon(let name): Image(systemName: name)
+                    case .text(let string): Text(string)
+                    }
+                }
+            }
                 .font(.system(.title3, design: .rounded).weight(.semibold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)

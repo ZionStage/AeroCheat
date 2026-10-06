@@ -18,7 +18,7 @@ This is a proof of concept: the menu bar app, the cheatsheet panel, and an activ
 
 ## Active mode
 
-While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, or a Dock icon whose app lives on another workspace) and shows a small bubble at the bottom of the screen with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click.
+While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, or a Dock icon whose app lives on another workspace) and shows a small bubble at the top right of the screen, below the menu bar and SketchyBar, with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click.
 
 Switching with the keyboard (your AeroSpace bindings), with Cmd-Tab, or through Spotlight or a script never triggers a suggestion.
 
@@ -26,7 +26,7 @@ Switching with the keyboard (your AeroSpace bindings), with Cmd-Tab, or through 
 
 1. Make sure AeroSpace 0.21.0-Beta or newer is running (`aerospace --version`).
 2. `swift run AeroCheat`, then open the menu bar item and tick **Active Mode**. It is off by default; the choice is saved in `UserDefaults`.
-3. Click a workspace item in your bar, or a Dock icon of an app on another workspace. The bubble appears within a fraction of a second and fades after about two seconds.
+3. Click a workspace item in your bar, or a Dock icon of an app on another workspace. The bubble appears within a fraction of a second and stays for 4 seconds, then fades.
 4. Press the suggested shortcut instead: no bubble, and that shortcut is muted for the rest of the day.
 
 The menu shows the connection state (for example "AeroSpace not found", "AeroSpace 0.20.x is too old" or "AeroSpace is not running, retrying…"), a **Last suggestion** line and **Snooze Suggestions for 1 Hour**. The connection is re-established with a growing delay if AeroSpace exits or restarts.
