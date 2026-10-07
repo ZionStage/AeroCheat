@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Same cost guard as CI: macOS minutes are billed on private repositories, and a job skipped by
+    # `if:` never starts a runner. This workflow does nothing until the repository is public.
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - name: Check the tag matches VERSION
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          [ "$GITHUB_REF_NAME" = "v$(tr -d '[:space:]' < VERSION)" ] || {
+            echo "Tag $GITHUB_REF_NAME does not match VERSION $(cat VERSION)" >&2
+            exit 1
+          }
+      - run: scripts/build-app.sh
+      - name: Publish the GitHub Release
+        # Manual runs (no tag) only build; they upload the zip as a workflow artifact instead.
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/AeroCheat-*.dmg dist/AeroCheat-*.zip \
+            --title "AeroCheat ${GITHUB_REF_NAME#v}" \
+            --generate-notes \
+            --verify-tag
+      - name: Keep the disk image and zip from a manual run
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: AeroCheat-app
+          path: |
+            dist/AeroCheat-*.dmg
+            dist/AeroCheat-*.zip
+          if-no-files-found: error

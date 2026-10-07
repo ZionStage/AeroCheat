@@ -14,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let activeStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let lastSuggestion = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let snoozeItem = NSMenuItem(title: "", action: #selector(toggleSnooze), keyEquivalent: "")
+    private let loginItem = LoginItemController()
+    private let loginToggle = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+    private let loginStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let loginSettings = NSMenuItem(title: "Open Login Items Settings…", action: #selector(openLoginItemsSettings), keyEquivalent: "")
     private lazy var settingsWindow = SettingsWindow(model: settings, configSource: configSource)
     private lazy var panel: CheatsheetPanel = {
         let panel = CheatsheetPanel(model: model)
@@ -88,6 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         snoozeItem.target = self
         [activeToggle, activeStatus, lastSuggestion, snoozeItem].forEach(menu.addItem)
         menu.addItem(.separator())
+        loginToggle.target = self
+        loginStatus.isEnabled = false
+        loginSettings.target = self
+        [loginToggle, loginStatus, loginSettings].forEach(menu.addItem)
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -96,9 +104,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
         refreshActiveModeItems()
+        refreshLoginItems()
     }
 
-    func menuWillOpen(_ menu: NSMenu) { refreshActiveModeItems() }
+    func menuWillOpen(_ menu: NSMenu) {
+        refreshActiveModeItems()
+        refreshLoginItems()
+    }
+
+    private func refreshLoginItems() {
+        let state = LoginItemMenuState(status: loginItem.status)
+        loginToggle.state = state.isChecked ? .on : .off
+        loginToggle.isEnabled = state.isEnabled
+        let detail = loginItem.lastError ?? state.detail
+        loginStatus.title = detail ?? ""
+        loginStatus.isHidden = detail == nil
+        loginSettings.isHidden = !state.offersSettings
+    }
 
     private func refreshActiveModeItems() {
         activeToggle.state = activeMode.isEnabled ? .on : .off
@@ -128,6 +150,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         activeMode.setEnabled(!activeMode.isEnabled)
         refreshActiveModeItems()
     }
+
+    @objc private func toggleLaunchAtLogin() {
+        loginItem.toggle()
+        refreshLoginItems()
+    }
+
+    @objc private func openLoginItemsSettings() { loginItem.openSystemSettings() }
 
     @objc private func toggleSnooze() {
         if activeMode.snoozedUntil == nil { activeMode.snooze() } else { activeMode.resume() }

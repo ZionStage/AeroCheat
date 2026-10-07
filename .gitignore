@@ -7,3 +7,4 @@ xcuserdata/
 *.xcodeproj/xcuserdata/
 *.xcuserstate
 .claude/
+dist/
