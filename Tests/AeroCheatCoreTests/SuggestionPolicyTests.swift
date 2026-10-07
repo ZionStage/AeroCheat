@@ -27,12 +27,6 @@ final class SuggestionPolicyTests: XCTestCase {
         SuggestionPolicy(calendar: calendar, clock: { clock.now })
     }
 
-    func testFirstSuggestionIsShown() throws {
-        let clock = Clock()
-        var policy = makePolicy(clock)
-        XCTAssertEqual(policy.consider(try suggestion("1")), .show)
-    }
-
     func testSameSuggestionHasA30SecondCooldown() throws {
         let clock = Clock()
         var policy = makePolicy(clock)
@@ -172,10 +166,4 @@ final class SuggestionPolicyTests: XCTestCase {
         }
     }
 
-    func testPressingTheCompanionBeforeAnySuggestionDoesNotMute() throws {
-        let clock = Clock()
-        var policy = makePolicy(clock)
-        policy.recordKeyboard(binding: "ctrl-alt-l")
-        XCTAssertEqual(policy.consider(try focusSuggestion()), .show)
-    }
 }

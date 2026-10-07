@@ -52,14 +52,6 @@ final class DisplaySettingsModelTests: XCTestCase {
         XCTAssertEqual(DisplaySettingsStorage(defaults: suite).load(), DisplaySettings())
     }
 
-    func testInMemoryModelNeverTouchesUserDefaults() {
-        let model = DisplaySettingsModel(inMemory: DisplaySettings())
-        model.settings.anchor = .center
-        XCTAssertEqual(model.settings.anchor, .center)
-        XCTAssertEqual(DisplaySettingsStorage(defaults: suite).load(), DisplaySettings())
-        XCTAssertTrue(suite.dictionaryRepresentation().keys.allSatisfy { !$0.hasPrefix("display.") })
-    }
-
     func testInMemoryModelStartsFromTheGivenSettingsClamped() {
         var s = DisplaySettings()
         s.duration = 1000

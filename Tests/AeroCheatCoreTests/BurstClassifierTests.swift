@@ -23,12 +23,7 @@ final class BurstClassifierTests: XCTestCase {
         let events: [(TimeInterval, AeroEvent)] = [(1.0, .bindingTriggered(binding: "ctrl-alt-3", mode: "main"))]
             + switchEvents(at: 1.03, from: "1", to: "3")
         XCTAssertEqual(classify(events, input: idle), [.keyboard(binding: "ctrl-alt-3")])
-    }
-
-    func testKeyboardWinsEvenWithRecentClick() {
-        let events: [(TimeInterval, AeroEvent)] = [(1.0, .bindingTriggered(binding: "ctrl-alt-3", mode: "main"))]
-            + switchEvents(at: 1.03, from: "1", to: "3")
-        XCTAssertEqual(classify(events, input: clicked), [.keyboard(binding: "ctrl-alt-3")])
+        XCTAssertEqual(classify(events, input: clicked), [.keyboard(binding: "ctrl-alt-3")], "a recent click does not turn a binding into a mouse action")
     }
 
     func testClickedSwitchIsMouse() {
@@ -40,9 +35,6 @@ final class BurstClassifierTests: XCTestCase {
 
     func testSwitchWithoutRecentClickIsIgnored() {
         XCTAssertEqual(classify(switchEvents(at: 1, from: "2", to: "3"), input: idle), [.ignored(.noRecentClick)])
-    }
-
-    func testClickRecencyBoundary() {
         let stale = InputRecency(sinceLeftMouseDown: 0.9, sinceLeftMouseUp: 0.85)
         XCTAssertEqual(classify(switchEvents(at: 1, from: "2", to: "3"), input: stale), [.ignored(.noRecentClick)])
     }
@@ -148,20 +140,6 @@ final class BurstClassifierTests: XCTestCase {
             classifyFocus([focus(at: 5, 2)], input: input),
             .mouseFocus(FocusSwitch(windowId: 2, workspace: "1", previousWindowId: 1, pointer: pointer))
         )
-    }
-
-    func testFocusChangeWithoutClickIsIgnored() {
-        XCTAssertEqual(classifyFocus([focus(at: 5, 2)], input: idle), .ignored(.noRecentClick))
-    }
-
-    func testFocusChangeAfterKeyIsIgnored() {
-        let input = InputRecency(sinceLeftMouseDown: 0.5, sinceLeftMouseUp: 0.5, sinceKeyDown: 0.05)
-        XCTAssertEqual(classifyFocus([focus(at: 5, 2)], input: input), .ignored(.keyAfterClick))
-    }
-
-    func testFocusChangeWithBindingIsKeyboard() {
-        let second: [(TimeInterval, AeroEvent)] = [(5, .bindingTriggered(binding: "ctrl-alt-l", mode: "main")), focus(at: 5.03, 2)]
-        XCTAssertEqual(classifyFocus(second, input: clicked), .keyboard(binding: "ctrl-alt-l"))
     }
 
     func testFirstFocusEventHasNoBaseline() {

@@ -93,9 +93,9 @@ The script is `DemoScript.scenarios` in [`Sources/AeroCheatCore/DemoScript.swift
 
 The bubble (`BubbleView`) and the value type that configures it (`BubbleStyle`: anchor, margins, duration, sizes, colours; `DisplaySettings()` maps to the shipped values, top right) live in the `AeroCheatUI` target. `Tests/AeroCheatUITests` renders the view into a bitmap with `NSHostingView` and `cacheDisplay`, with no screen, window server window or permission, and asserts what is deterministic:
 
-- size within bounds, and the hint line making the bubble taller;
+- the hint line making the bubble taller, and the size setting scaling it;
 - the origin computed for a fake screen frame (the nine anchors, the margins, a secondary screen), including that the top edge clears SketchyBar (about 74 pt from the screen top);
-- the default 4 s duration and the other defaults, and that the settings map to the style (size, opacity, colours, icons versus text), including the extremes staying within bounds;
+- the default 4 s duration and the other defaults, and that the settings map to the style (size, opacity, colours, icons versus text);
 - modifier keys drawn as icons, with the glyph text as fallback when an SF Symbol is unavailable, and that the two renderings differ.
 
 There is no golden-image comparison: pixels vary with the OS version, the appearance and the material blur. To look at the result, set `AEROCHEAT_SNAPSHOT_DIR` and the tests also write each rendering there as a PNG:

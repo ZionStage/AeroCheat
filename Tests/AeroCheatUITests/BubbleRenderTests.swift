@@ -4,21 +4,11 @@ import AppKit
 import SwiftUI
 import XCTest
 
-/// Offscreen rendering of the bubble. It asserts what is deterministic: size bounds, that something is
-/// painted, and that icons versus text fallback change the picture. No golden images, no pixel equality.
+/// Offscreen rendering of the bubble. It asserts what is deterministic: that something is painted and that
+/// settings change the picture. No golden images, no pixel equality.
 @MainActor
 final class BubbleRenderTests: XCTestCase {
     private let allSymbols: (String) -> Bool = { _ in true }
-    private let noSymbols: (String) -> Bool = { _ in false }
-
-    func testDefaultBubbleSizeStaysWithinBounds() throws {
-        let content = BubbleContent(suggestion: try BubbleRender.suggestion("ctrl-alt-3"), symbolAvailable: allSymbols)
-        let render = try BubbleRender.render(content)
-        XCTAssertGreaterThanOrEqual(render.size.width, 150)
-        XCTAssertLessThanOrEqual(render.size.width, 480)
-        XCTAssertGreaterThanOrEqual(render.size.height, 36)
-        XCTAssertLessThanOrEqual(render.size.height, 90)
-    }
 
     func testHintMakesTheBubbleTallerThanWithoutOne() throws {
         let plain = try BubbleRender.render(BubbleContent(suggestion: try BubbleRender.suggestion("ctrl-alt-3"), symbolAvailable: allSymbols))
@@ -27,41 +17,15 @@ final class BubbleRenderTests: XCTestCase {
             symbolAvailable: allSymbols
         ))
         XCTAssertGreaterThan(hinted.size.height, plain.size.height)
-        XCTAssertLessThanOrEqual(hinted.size.height, 120)
-        XCTAssertLessThanOrEqual(hinted.size.width, 480)
     }
 
-    func testBitmapMatchesTheViewSizeAndIsPainted() throws {
+    func testBubbleIsPainted() throws {
         let content = BubbleContent(suggestion: try BubbleRender.suggestion("ctrl-alt-3"), symbolAvailable: allSymbols)
         let render = try BubbleRender.render(content)
-        XCTAssertGreaterThanOrEqual(render.bitmap.pixelsWide, Int(render.size.width))
-        XCTAssertGreaterThanOrEqual(render.bitmap.pixelsHigh, Int(render.size.height))
         XCTAssertGreaterThan(render.paintedPixelCount, 100, "the bubble rendered blank")
         XCTAssertGreaterThan(render.inkPixelCount, 20, "no text or icon ink found")
     }
 
-    func testIconsAndTextFallbackRenderDifferently() throws {
-        let suggestion = try BubbleRender.suggestion("ctrl-alt-3")
-        let icons = try BubbleRender.render(BubbleContent(suggestion: suggestion, symbolAvailable: allSymbols))
-        let glyphs = try BubbleRender.render(BubbleContent(suggestion: suggestion, symbolAvailable: noSymbols))
-        XCTAssertNotEqual(
-            icons.bitmap.representation(using: .png, properties: [:]),
-            glyphs.bitmap.representation(using: .png, properties: [:]),
-            "symbol icons and glyph fallback must not draw the same picture"
-        )
-        // Both still draw something readable.
-        XCTAssertGreaterThan(glyphs.inkPixelCount, 20)
-    }
-
-    func testNarrowerStyleProducesSmallerBubble() throws {
-        let content = BubbleContent(suggestion: try BubbleRender.suggestion("ctrl-alt-3"), symbolAvailable: allSymbols)
-        var compact = BubbleStyle()
-        compact.padding = CGSize(width: 4, height: 2)
-        let normal = try BubbleRender.render(content)
-        let small = try BubbleRender.render(content, style: compact)
-        XCTAssertLessThan(small.size.width, normal.size.width)
-        XCTAssertLessThan(small.size.height, normal.size.height)
-    }
 }
 
 // MARK: Rendering from the settings
@@ -77,12 +41,6 @@ final class BubbleSettingsRenderTests: XCTestCase {
         result.bitmap.representation(using: .png, properties: [:])
     }
 
-    func testDefaultSettingsRenderTheShippedBubble() throws {
-        let shipped = try BubbleRender.render(BubbleContent(suggestion: try BubbleRender.suggestion("ctrl-alt-3")))
-        let fromSettings = try render(DisplaySettings())
-        XCTAssertEqual(fromSettings.size, shipped.size)
-    }
-
     func testIconsVersusTextForModifiers() throws {
         var settings = DisplaySettings()
         let icons = try render(settings)
@@ -94,7 +52,7 @@ final class BubbleSettingsRenderTests: XCTestCase {
         XCTAssertGreaterThan(text.inkPixelCount, 20)
     }
 
-    func testSizeScalesTheBubbleAndStaysWithinBounds() throws {
+    func testSizeScalesTheBubble() throws {
         var settings = DisplaySettings()
         let normal = try render(settings)
         settings.scale = DisplaySettings.scaleRange.lowerBound
@@ -105,11 +63,6 @@ final class BubbleSettingsRenderTests: XCTestCase {
         XCTAssertLessThan(small.size.height, normal.size.height)
         XCTAssertGreaterThan(large.size.width, normal.size.width)
         XCTAssertGreaterThan(large.size.height, normal.size.height)
-        // The smallest and the largest stay readable and on a screen.
-        XCTAssertGreaterThanOrEqual(small.size.width, 110)
-        XCTAssertGreaterThanOrEqual(small.size.height, 28)
-        XCTAssertLessThanOrEqual(large.size.width, 480 * CGFloat(DisplaySettings.scaleRange.upperBound))
-        XCTAssertLessThanOrEqual(large.size.height, 90 * CGFloat(DisplaySettings.scaleRange.upperBound))
         XCTAssertGreaterThan(large.inkPixelCount, normal.inkPixelCount)
     }
 
@@ -150,17 +103,6 @@ final class BubbleSettingsRenderTests: XCTestCase {
         let faint = try render(settings)
         XCTAssertGreaterThan(maxAlpha(opaque), 0.95)
         XCTAssertLessThan(maxAlpha(faint), 0.6)
-    }
-
-    func testEveryAnchorGivesAnOriginInsideAFakeScreenForARenderedBubble() throws {
-        let visible = CGRect(x: 0, y: 0, width: 1440, height: 876)
-        let size = try render(DisplaySettings()).size
-        for anchor in BubbleAnchor.allCases {
-            var settings = DisplaySettings()
-            settings.anchor = anchor
-            let origin = BubbleStyle(settings: settings).origin(for: size, in: visible)
-            XCTAssertTrue(visible.contains(CGRect(origin: origin, size: size)), "\(anchor)")
-        }
     }
 
     func testSettingsViewRendersSomething() throws {

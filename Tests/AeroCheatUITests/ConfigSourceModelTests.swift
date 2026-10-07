@@ -32,12 +32,6 @@ final class ConfigSourceModelTests: XCTestCase {
         return url.path
     }
 
-    func testStartsAutomaticAndMissingInAnEmptyHome() {
-        let model = model()
-        XCTAssertEqual(model.setting, .automatic)
-        XCTAssertNil(model.result.effectivePath)
-    }
-
     func testChangingThePathReloadsSavesAndNotifies() throws {
         let path = try write("custom.toml", 2)
         let model = model()

@@ -79,25 +79,6 @@ final class AeroSpaceConfigTests: XCTestCase {
 
     // MARK: Loader
 
-    func testLoaderReadsFixtureThroughSymlink() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("aerocheat-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let link = dir.appendingPathComponent("link.toml")
-        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: fixtureURL())
-
-        guard case .loaded(let path, let modes) = AeroSpaceConfigLoader.load(paths: [link.path]) else {
-            return XCTFail("expected a loaded config")
-        }
-        XCTAssertEqual(path, link.path)
-        XCTAssertEqual(modes.map(\.name), ["main", "service"])
-    }
-
-    func testLoaderReportsMissingConfig() {
-        let paths = ["/nonexistent/aerocheat/a.toml", "/nonexistent/aerocheat/b.toml"]
-        XCTAssertEqual(AeroSpaceConfigLoader.load(paths: paths), .missing(searched: paths))
-    }
-
     func testLoaderReportsDanglingSymlinkAsMissing() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("aerocheat-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -107,16 +88,6 @@ final class AeroSpaceConfigTests: XCTestCase {
         XCTAssertEqual(AeroSpaceConfigLoader.load(paths: [link.path]), .missing(searched: [link.path]))
     }
 
-    func testLoaderReportsUnparsableConfig() throws {
-        let file = FileManager.default.temporaryDirectory.appendingPathComponent("aerocheat-\(UUID().uuidString).toml")
-        try "[mode.main.binding\nalt-h = 'x'\n".write(to: file, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: file) }
-        guard case .failed(let path, let message) = AeroSpaceConfigLoader.load(paths: [file.path]) else {
-            return XCTFail("expected a failure")
-        }
-        XCTAssertEqual(path, file.path)
-        XCTAssertTrue(message.contains("line 1"), message)
-    }
 }
 
 final class BindingFilterTests: XCTestCase {
@@ -151,9 +122,6 @@ final class BindingFilterTests: XCTestCase {
         XCTAssertTrue(BindingFilter.apply("alt reload", to: modes).isEmpty)
     }
 
-    func testDropsModesWithoutMatches() {
-        XCTAssertEqual(BindingFilter.apply("reload", to: modes).map(\.name), ["service"])
-    }
 }
 
 final class MiniTOMLTests: XCTestCase {

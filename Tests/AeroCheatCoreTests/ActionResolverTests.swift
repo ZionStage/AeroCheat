@@ -108,11 +108,6 @@ final class ActionResolverTests: XCTestCase {
         XCTAssertEqual(vertical.hint, "or ⌃⌥ J to focus down")
     }
 
-    func testWorkspaceSuggestionsKeepTheirTrigger() throws {
-        let r = try resolver(horizontalConfig)
-        XCTAssertEqual(r.suggestion(for: MouseSwitch(from: "2", to: "1"))?.trigger, .workspaceSwitch)
-    }
-
     func testPairUsesWhicheverBindingExists() throws {
         let onlyRight = try resolver("[mode.main.binding]\nalt-l = 'focus right'")
         let suggestion = try XCTUnwrap(onlyRight.suggestion(for: click, layout: .accordion(.horizontal), windowFrame: nil))

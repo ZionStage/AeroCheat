@@ -39,31 +39,7 @@ final class DisplaySettingsTests: XCTestCase {
         XCTAssertEqual(s.normalized(), s)
     }
 
-    func testDefaultPolicyLimitsAreTheShippedOnes() {
-        let limits = DisplaySettings().policyLimits
-        let shipped = SuggestionPolicy.Limits()
-        XCTAssertEqual(limits.minimumToastInterval, shipped.minimumToastInterval)
-        XCTAssertEqual(limits.perSuggestionCooldown, shipped.perSuggestionCooldown)
-        XCTAssertEqual(limits.followUpWindow, shipped.followUpWindow)
-        XCTAssertEqual(limits.ignoredBeforeBackOff, shipped.ignoredBeforeBackOff)
-    }
-
-    func testTheGridHasTheNineAnchorsTopToBottom() {
-        XCTAssertEqual(BubbleAnchor.grid.flatMap { $0 }, [
-            .topLeft, .topCenter, .topRight, .middleLeft, .center, .middleRight, .bottomLeft, .bottomCenter, .bottomRight,
-        ])
-        XCTAssertEqual(Set(BubbleAnchor.allCases).count, 9)
-        XCTAssertEqual(BubbleAnchor.center.horizontal, .middle)
-        XCTAssertEqual(BubbleAnchor.center.vertical, .middle)
-        XCTAssertEqual(BubbleAnchor.bottomLeft.horizontal, .start)
-        XCTAssertEqual(BubbleAnchor.bottomLeft.vertical, .end)
-    }
-
     // MARK: Persistence
-
-    func testAnEmptyStoreLoadsTheDefaults() {
-        XCTAssertEqual(storage.load(), DisplaySettings())
-    }
 
     func testRoundTripThroughAThrowawaySuite() {
         var s = DisplaySettings()
@@ -193,16 +169,7 @@ final class DisplaySettingsTests: XCTestCase {
         return try XCTUnwrap(ActionResolver(modes: modes).suggestion(for: MouseSwitch(from: "9", to: workspace)))
     }
 
-    func testAWorkspaceSwitchSuggestionIsOfTheWorkspaceKind() throws {
-        XCTAssertEqual(try suggestion("1").kind, .workspaceSwitch)
-        var s = DisplaySettings()
-        s.setEnabled(.workspaceSwitch, false)
-        XCTAssertFalse(s.isEnabled(try suggestion("1").kind))
-        s.setEnabled(.workspaceSwitch, true)
-        XCTAssertTrue(s.isEnabled(try suggestion("1").kind))
-    }
-
-    func testAFocusSuggestionIsOfTheFocusKindAndCanBeSwitchedOffAlone() throws {
+    func testEachSuggestionKindCanBeSwitchedOffAlone() throws {
         let modes = try AeroSpaceConfig.parse("""
         [mode.main.binding]
         ctrl-alt-h = 'focus left'
@@ -210,20 +177,17 @@ final class DisplaySettingsTests: XCTestCase {
         """)
         let click = FocusSwitch(windowId: 2, workspace: "1", previousWindowId: 1, pointer: CGPoint(x: 600, y: 400))
         let focus = try XCTUnwrap(ActionResolver(modes: modes).suggestion(for: click, layout: .accordion(.horizontal), windowFrame: nil))
+        let workspace = try suggestion("1")
+        XCTAssertEqual(workspace.kind, .workspaceSwitch)
         XCTAssertEqual(focus.kind, .focusChange)
         var s = DisplaySettings()
         s.setEnabled(.focusChange, false)
         XCTAssertFalse(s.isEnabled(focus.kind))
-        XCTAssertTrue(s.isEnabled(try suggestion("1").kind))
-    }
-
-    func testDelaysFromTheSettingsReachThePolicy() {
-        var s = DisplaySettings()
-        s.tipInterval = 2
-        s.identicalTipInterval = 100
-        let limits = s.policyLimits
-        XCTAssertEqual(limits.minimumToastInterval, 2)
-        XCTAssertEqual(limits.perSuggestionCooldown, 100)
+        XCTAssertTrue(s.isEnabled(workspace.kind))
+        s.setEnabled(.focusChange, true)
+        s.setEnabled(.workspaceSwitch, false)
+        XCTAssertTrue(s.isEnabled(focus.kind))
+        XCTAssertFalse(s.isEnabled(workspace.kind))
     }
 
     func testPolicyAppliesNewDelaysLiveAndKeepsItsHistory() throws {

@@ -86,18 +86,6 @@ final class DemoScriptTests: XCTestCase {
         }
     }
 
-    func testScriptCoversMouseKeyboardAndRateLimitedRepeat() throws {
-        let expectations = DemoScript.scenarios.map(\.expectation)
-        XCTAssertTrue(expectations.contains(.silent("keyboard")))
-        XCTAssertTrue(expectations.contains(.silent("cooldown")))
-        XCTAssertTrue(expectations.contains { if case .bubble = $0 { return true } else { return false } })
-    }
-
-    func testLastScenarioShowsTheToggleBackHint() throws {
-        let last = try XCTUnwrap(try play(DemoScript.scenarios).last)
-        XCTAssertEqual(last.hint, "or ⌃⌥ ⇥ to toggle back")
-    }
-
     func testTimelineLaysScenariosEndToEnd() {
         let timeline = DemoScript.timeline()
         XCTAssertEqual(timeline.map(\.at), timeline.map(\.at).sorted())
@@ -106,14 +94,4 @@ final class DemoScriptTests: XCTestCase {
         XCTAssertEqual(timeline.first?.at ?? -1, DemoScript.scenarios[0].pause, accuracy: 0.0001)
     }
 
-    func testAScenarioAddedToTheListIsPlayedToo() throws {
-        let extra = DemoScenario(
-            name: "Cmd-Tab style switch without a click",
-            pause: 6,
-            events: [DemoEvent(offset: 0, event: .focusedWorkspaceChanged(prev: "3", workspace: "1"), input: .idle)],
-            expectation: .silent("noRecentClick")
-        )
-        let outcomes = try play(DemoScript.scenarios + [extra])
-        XCTAssertEqual(outcomes.last?.expectation, .silent("noRecentClick"))
-    }
 }

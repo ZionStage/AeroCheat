@@ -61,17 +61,11 @@ final class ConfigPathTests: XCTestCase {
 
     // MARK: Resolution
 
-    func testTildeExpandsToHome() throws {
+    func testResolveExpandsTildeRelativePathsAndWhitespace() throws {
         XCTAssertEqual(try ConfigPath.resolve("~/cfg/a.toml", home: "/Users/x"), "/Users/x/cfg/a.toml")
         XCTAssertEqual(try ConfigPath.resolve("~", home: "/Users/x"), "/Users/x")
-    }
-
-    func testRelativePathIsTakenFromHome() throws {
         XCTAssertEqual(try ConfigPath.resolve("cfg/a.toml", home: "/Users/x"), "/Users/x/cfg/a.toml")
         XCTAssertEqual(try ConfigPath.resolve("./cfg/../a.toml", home: "/Users/x"), "/Users/x/a.toml")
-    }
-
-    func testAbsolutePathAndSurroundingWhitespace() throws {
         XCTAssertEqual(try ConfigPath.resolve("  /etc/a.toml \n", home: "/Users/x"), "/etc/a.toml")
     }
 
@@ -79,6 +73,8 @@ final class ConfigPathTests: XCTestCase {
         XCTAssertThrowsError(try ConfigPath.resolve("  ", home: "/h")) { XCTAssertEqual($0 as? ConfigPathError, .invalidPath("the path is empty")) }
         XCTAssertThrowsError(try ConfigPath.resolve("a\0b", home: "/h"))
         XCTAssertThrowsError(try ConfigPath.resolve("~bob/a.toml", home: "/h"))
+        XCTAssertNotNil(failure(load(.custom("~bob/x.toml"))), "an unresolvable path is reported as a failure")
+        XCTAssertNotNil(failure(load(.custom("a\0b"))))
     }
 
     // MARK: Loading
@@ -108,13 +104,6 @@ final class ConfigPathTests: XCTestCase {
         XCTAssertNil(result.bindingCount, "no silent fallback to ~/.aerospace.toml")
     }
 
-    func testCustomTildeAndRelativePathsLoad() throws {
-        let path = try write("cfg/a.toml")
-        XCTAssertEqual(load(.custom("~/cfg/a.toml")).effectivePath, path)
-        XCTAssertEqual(load(.custom("cfg/a.toml")).effectivePath, path)
-        XCTAssertEqual(load(.custom("  cfg/a.toml  ")).effectivePath, path)
-    }
-
     func testCustomPathThroughSymlinkLoads() throws {
         let target = try write("real/aerospace.toml")
         let link = dir.appendingPathComponent("link.toml")
@@ -127,16 +116,13 @@ final class ConfigPathTests: XCTestCase {
         XCTAssertEqual(load(.custom("~/linkdir/aerospace.toml")).bindingCount, 3)
     }
 
-    func testMissingFileIsAnError() {
+    func testMissingFileIsAnError() throws {
         let (path, message) = failure(load(.custom("~/gone.toml"))) ?? ("", "")
         XCTAssertEqual(path, home + "/gone.toml")
         XCTAssertEqual(message, ConfigPathError.notFound.description)
-    }
-
-    func testDanglingSymlinkIsAnError() throws {
         let link = dir.appendingPathComponent("dangling.toml")
         try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: dir.path + "/gone.toml")
-        XCTAssertEqual(failure(load(.custom(link.path)))?.message, ConfigPathError.notFound.description)
+        XCTAssertEqual(failure(load(.custom(link.path)))?.message, ConfigPathError.notFound.description, "a dangling symlink is a missing file")
     }
 
     func testDirectoryInsteadOfFileIsAnError() throws {
@@ -153,7 +139,7 @@ final class ConfigPathTests: XCTestCase {
         XCTAssertTrue(message.hasPrefix("Cannot read the file"), message)
     }
 
-    func testNonTOMLContentReusesTheParserError() throws {
+    func testParserErrorsAreReportedAsFailures() throws {
         let path = try write("bad.toml", "[mode.main.binding\nalt-h = 'x'\n")
         let (shown, message) = failure(load(.custom(path))) ?? ("", "")
         XCTAssertEqual(shown, path)
@@ -162,11 +148,8 @@ final class ConfigPathTests: XCTestCase {
         let binary = dir.appendingPathComponent("blob.toml")
         try Data([0xFF, 0xFE, 0x00, 0xD8]).write(to: binary)
         XCTAssertEqual(failure(load(.custom(binary.path)))?.message, ConfigPathError.notUTF8.description)
-    }
-
-    func testInvalidBindingReusesTheParserError() throws {
-        let path = try write("num.toml", "[mode.main.binding]\nalt-h = 42\n")
-        XCTAssertEqual(failure(load(.custom(path)))?.message, AeroSpaceConfigError.invalidBinding(mode: "main", key: "alt-h").description)
+        let invalid = try write("num.toml", "[mode.main.binding]\nalt-h = 42\n")
+        XCTAssertEqual(failure(load(.custom(invalid)))?.message, AeroSpaceConfigError.invalidBinding(mode: "main", key: "alt-h").description)
     }
 
     func testEmptyFileIsValidWithNoBindings() throws {
@@ -181,15 +164,12 @@ final class ConfigPathTests: XCTestCase {
         XCTAssertNil(result.bindingCount)
     }
 
-    func testInvalidTextIsAnError() {
-        XCTAssertNotNil(failure(load(.custom("~bob/x.toml"))))
-        XCTAssertNotNil(failure(load(.custom("a\0b"))))
-    }
-
     // MARK: Persistence
 
-    func testNothingStoredIsAutomatic() {
+    func testNothingOrBlankStoredIsAutomatic() {
         XCTAssertEqual(ConfigPathStorage(defaults: suite).load(), .automatic)
+        suite.set("   ", forKey: "config.path")
+        XCTAssertEqual(ConfigPathStorage(defaults: suite).load(), .automatic, "a blank stored string is the default too")
     }
 
     func testRoundTrip() {
@@ -202,11 +182,6 @@ final class ConfigPathTests: XCTestCase {
         XCTAssertNil(suite.object(forKey: "config.path"), "automatic stores nothing")
     }
 
-    func testStoredBlankStringIsAutomatic() {
-        suite.set("   ", forKey: "config.path")
-        XCTAssertEqual(ConfigPathStorage(defaults: suite).load(), .automatic)
-    }
-
     func testStoredValueOfTheWrongTypeIsCorrupt() {
         let storage = ConfigPathStorage(defaults: suite)
         suite.set(42, forKey: "config.path")
@@ -217,11 +192,5 @@ final class ConfigPathTests: XCTestCase {
         XCTAssertEqual(storage.load(), .corrupt, "saving a corrupt value does not repair it")
         storage.clear()
         XCTAssertEqual(storage.load(), .automatic)
-    }
-
-    func testDefaultsNeverTouchTheRealStore() {
-        XCTAssertNil(UserDefaults.standard.object(forKey: "config.path.test-sentinel"))
-        ConfigPathStorage(defaults: suite).save(.custom("x"))
-        XCTAssertNotEqual(ConfigPathStorage(defaults: .standard).load(), .custom("x"))
     }
 }

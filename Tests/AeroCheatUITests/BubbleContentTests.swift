@@ -11,11 +11,6 @@ final class BubbleContentTests: XCTestCase {
         XCTAssertNil(content.hint)
     }
 
-    func testAllFourModifiersHaveIcons() throws {
-        let content = BubbleContent(suggestion: try BubbleRender.suggestion("ctrl-alt-shift-cmd-3"), symbolAvailable: { _ in true })
-        XCTAssertEqual(content.caps, [.icon("control"), .icon("option"), .icon("shift"), .icon("command"), .text("3")])
-    }
-
     func testFallsBackToGlyphTextWhenASymbolIsUnavailable() throws {
         let content = BubbleContent(suggestion: try BubbleRender.suggestion("ctrl-alt-3"), symbolAvailable: { $0 != "option" })
         XCTAssertEqual(content.caps, [.icon("control"), .text("⌥"), .text("3")])

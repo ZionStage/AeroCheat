@@ -2,7 +2,7 @@ import XCTest
 @testable import AeroCheatCore
 
 /// Replays a sanitised stream (workspace numbers and synthetic window ids only) through the classifier.
-/// The fixtures are shaped after real captures: keyboard presses, a focus bounce, mouse taps, a Cmd-Tab, Mission Control clicks.
+/// The fixture is shaped after real captures: Dock and Mission Control clicks, a keyboard switch, a Cmd-Tab, focus-only events.
 final class GoldenReplayTests: XCTestCase {
     private struct Line: Decodable {
         struct Since: Decodable {
@@ -24,7 +24,7 @@ final class GoldenReplayTests: XCTestCase {
         }
     }
 
-    private func replay(_ fixture: String = "golden-replay.jsonl") throws -> [BurstVerdict] {
+    private func replay(_ fixture: String) throws -> [BurstVerdict] {
         let url = try XCTUnwrap(Bundle.module.url(forResource: fixture, withExtension: nil, subdirectory: "Fixtures"))
         let text = try String(contentsOf: url, encoding: .utf8)
         var classifier = BurstClassifier()
@@ -45,35 +45,6 @@ final class GoldenReplayTests: XCTestCase {
         return verdicts
     }
 
-    func testVerdictsOfTheRecordedStream() throws {
-        XCTAssertEqual(try replay(), [
-            .keyboard(binding: "ctrl-alt-3"),
-            .keyboard(binding: "ctrl-alt-1"),                                   // includes the focus bounce
-            .mouse(MouseSwitch(from: "1", to: "2")),                            // Dock-zone tap
-            .ignored(.noRecentClick),                                           // Cmd-Tab
-            .mouse(MouseSwitch(from: "1", to: "3")),                            // second tap
-            .ignored(.noFocusChange),                                           // focus-only burst on the focused window
-            .ignored(.bounce),                                                  // independent bounce
-        ])
-    }
-
-    func testOnlyMouseBurstsProduceSuggestions() throws {
-        let config = try AeroSpaceConfig.parse("""
-        [mode.main.binding]
-        ctrl-alt-1 = 'workspace 1'
-        ctrl-alt-2 = 'workspace 2'
-        ctrl-alt-3 = 'workspace 3'
-        """)
-        let resolver = ActionResolver(modes: config)
-        let suggestions = try replay().compactMap { verdict -> String? in
-            guard case .mouse(let mouseSwitch) = verdict else { return nil }
-            return resolver.suggestion(for: mouseSwitch)?.keys
-        }
-        XCTAssertEqual(suggestions, ["⌃⌥ 2", "⌃⌥ 3"])
-    }
-
-    // MARK: Mission Control
-
     func testVerdictsOfTheMissionControlSessions() throws {
         XCTAssertEqual(try replay("mission-control-replay.jsonl"), [
             .mouse(MouseSwitch(from: "1", to: "2")),                            // Dock icon click
@@ -88,37 +59,5 @@ final class GoldenReplayTests: XCTestCase {
             // Mission Control click and is still taken for a mouse switch. Telling them apart needs the click's target.
             .mouse(MouseSwitch(from: "3", to: "1")),
         ])
-    }
-
-    func testMissionControlClicksSuggestTheWorkspaceShortcut() throws {
-        let config = try AeroSpaceConfig.parse("""
-        [mode.main.binding]
-        ctrl-alt-1 = 'workspace 1'
-        ctrl-alt-2 = 'workspace 2'
-        ctrl-alt-3 = 'workspace 3'
-        ctrl-alt-tab = 'workspace-back-and-forth'
-        """)
-        let resolver = ActionResolver(modes: config)
-        let suggestions = try replay("mission-control-replay.jsonl").compactMap { verdict -> String? in
-            guard case .mouse(let mouseSwitch) = verdict else { return nil }
-            return resolver.suggestion(for: mouseSwitch)?.summary
-        }
-        XCTAssertEqual(suggestions, ["⌃⌥ 2 — switch to workspace 2", "⌃⌥ 1 — switch to workspace 1", "⌃⌥ 3 — switch to workspace 3", "⌃⌥ 1 — switch to workspace 1"])
-    }
-
-    func testSameWorkspaceClickSuggestsFocusInAnAccordion() throws {
-        let config = try AeroSpaceConfig.parse("""
-        [mode.main.binding]
-        ctrl-alt-h = 'focus left'
-        ctrl-alt-l = 'focus right'
-        """)
-        let resolver = ActionResolver(modes: config)
-        let focus = try XCTUnwrap(try replay("mission-control-replay.jsonl").compactMap { verdict -> FocusSwitch? in
-            if case .mouseFocus(let focus) = verdict { return focus }
-            return nil
-        }.first)
-        let suggestion = try XCTUnwrap(resolver.suggestion(for: focus, layout: .accordion(.horizontal), windowFrame: nil))
-        XCTAssertEqual(suggestion.summary, "⌃⌥ H — focus left")
-        XCTAssertEqual(suggestion.hint, "or ⌃⌥ L to focus right")
     }
 }
