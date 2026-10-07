@@ -9,17 +9,17 @@ final class SettingsWindow: NSWindow {
     private let model: DisplaySettingsModel
     private let previewToast = ToastPanel()
 
-    init(model: DisplaySettingsModel) {
+    init(model: DisplaySettingsModel, configSource: ConfigSourceModel) {
         self.model = model
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 700),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 820),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         title = "AeroCheat Settings"
         isReleasedWhenClosed = false
-        contentView = NSHostingView(rootView: SettingsView(model: model, onPreview: { [weak self] in self?.preview() }))
+        contentView = NSHostingView(rootView: SettingsView(model: model, configSource: configSource, onPreview: { [weak self] in self?.preview() }))
         center()
     }
 

@@ -9,7 +9,7 @@ This is a proof of concept: the menu bar app, the cheatsheet panel, and an activ
 - Lives in the menu bar (no Dock icon). The menu offers **Show Cheatsheet**, **Reload AeroSpace Config**, the active mode controls (below), **Settings…** and **Quit AeroCheat**.
 - A global hotkey toggles a floating cheatsheet panel above other windows. **Esc** or pressing the hotkey again closes it.
 - The panel lists the bindings of your AeroSpace config, grouped by mode (`[mode.<name>.binding]`), with modifiers shown as ⌃ ctrl, ⌥ alt, ⇧ shift, ⌘ cmd. A search field filters by key, modifier name, or command.
-- The config is read at launch (and on **Reload AeroSpace Config**) from `~/.aerospace.toml`, falling back to `~/.config/aerospace/aerospace.toml`. Symlinks are followed. The file is only ever read, never written.
+- The config is read at launch (and on **Reload AeroSpace Config**) from `~/.aerospace.toml`, falling back to `~/.config/aerospace/aerospace.toml`, unless you [point the app at another file](#using-a-non-default-aerospace-config). Symlinks are followed. The file is only ever read, never written.
 - A missing or unparsable config shows a clear message in the panel instead of a list.
 
 ### Default hotkey
@@ -45,9 +45,20 @@ Out of scope for now: suggestions for a direct click on a visible window, tellin
 
 Known limits of the same-workspace case: a click on a Dock icon or a menu item that opens or raises a window of the same workspace is indistinguishable from a window click and shows the focus suggestion; in a tiled layout a Mission Control thumbnail can sit over the window's real frame, which reads as a direct click and stays silent; in an accordion layout a click that closes a window or opens one can look like an indirect click. Closing a window (focus falls to a neighbour) and opening a window from an empty workspace stay silent.
 
+## Using a non-default AeroSpace config
+
+If your AeroSpace config is not at `~/.aerospace.toml` or `~/.config/aerospace/aerospace.toml`, open **Settings…** and use the **AeroSpace config** section at the top:
+
+- type the path in the field and press Return, or click **Choose…** and pick the file (any file can be picked; AeroSpace's is usually `aerospace.toml`; hidden files are shown);
+- **Use default location** (or emptying the field) goes back to the automatic search above.
+
+The change applies at once: the cheatsheet panel, the active mode's shortcut suggestions and **Reload AeroSpace Config** all use the new path, and the section shows the path in use and either the number of bindings found or the error. The path is saved in `UserDefaults` (`config.path`, nothing is stored while it is automatic).
+
+A path may start with `~`, be relative (taken from your home folder) or go through a symlink. A custom path is never mixed with the automatic search: if the file is missing, is a folder, cannot be read, is not UTF-8 or is not valid TOML, you get that error in the settings and in the panel rather than the default config. Likewise a damaged saved value is reported, not silently replaced. The file is only read, never written. The app does not detect the path from AeroSpace and does not watch the file: use **Reload AeroSpace Config** after editing it. In `--demo` mode the sample config always stands in and the path is not saved.
+
 ## Settings
 
-**Settings…** in the menu bar menu opens a window that configures the bubble and when it appears. Every change applies at once, without restarting, and is saved in `UserDefaults` (one `display.*` entry per setting). The defaults are the behaviour described above, so nothing changes until you change something.
+**Settings…** in the menu bar menu opens a window that configures the AeroSpace config path (above) and the bubble and when it appears. Every change applies at once, without restarting, and is saved in `UserDefaults` (one `display.*` entry per setting). The defaults are the behaviour described above, so nothing changes until you change something.
 
 | Group | What you can set |
 |-------|------------------|
@@ -118,8 +129,8 @@ None. The hotkey uses the Carbon `RegisterEventHotKey` API, which needs neither 
 
 | Path | Role |
 |------|------|
-| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, window layout, suggestion policy; display settings and their storage; demo script |
-| `Sources/AeroCheatUI` | The suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView`; the live settings model and the settings window's `SettingsView` |
+| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, window layout, suggestion policy; display settings and their storage; AeroSpace config path resolution and storage; demo script |
+| `Sources/AeroCheatUI` | The suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView`; the live settings model, the live config source (`ConfigSourceModel`) and the settings window's `SettingsView` |
 | `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event sources (real stream, demo), mouse and key recency probe, focused window probe, toast panel, settings window |
 | `Tests/AeroCheatCoreTests` | Unit tests, using `Fixtures/sample-aerospace.toml` and sanitised `golden-replay.jsonl` and `mission-control-replay.jsonl` replays rather than a real config or capture; the demo script replay |
 | `Tests/AeroCheatUITests` | Offscreen rendering and geometry tests of the bubble |

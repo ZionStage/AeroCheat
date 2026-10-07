@@ -165,7 +165,11 @@ final class BubbleSettingsRenderTests: XCTestCase {
 
     func testSettingsViewRendersSomething() throws {
         let model = DisplaySettingsModel(inMemory: DisplaySettings())
-        let hosting = NSHostingView(rootView: SettingsView(model: model, onPreview: {}))
+        let hosting = NSHostingView(rootView: SettingsView(
+            model: model,
+            configSource: ConfigSourceModel(storage: nil, loader: { _ in .missing(searched: ["/nowhere/a.toml"]) }),
+            onPreview: {}
+        ))
         hosting.appearance = NSAppearance(named: .aqua)
         hosting.frame = NSRect(x: 0, y: 0, width: 480, height: 640)
         hosting.layoutSubtreeIfNeeded()

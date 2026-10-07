@@ -6,16 +6,22 @@ import SwiftUI
 /// edits `DisplaySettingsModel`, which clamps, saves and applies every change at once.
 public struct SettingsView: View {
     @ObservedObject var model: DisplaySettingsModel
+    @ObservedObject var configSource: ConfigSourceModel
     let onPreview: () -> Void
+    /// What the path field shows while it is being edited; applied on Return or when the field loses focus.
+    @State private var pathDraft = ""
+    @FocusState private var pathFocused: Bool
 
-    public init(model: DisplaySettingsModel, onPreview: @escaping () -> Void) {
+    public init(model: DisplaySettingsModel, configSource: ConfigSourceModel, onPreview: @escaping () -> Void) {
         self.model = model
+        self.configSource = configSource
         self.onPreview = onPreview
     }
 
     public var body: some View {
         VStack(spacing: 0) {
             Form {
+                configSection
                 positionSection
                 lookSection
                 timingSection
@@ -34,6 +40,36 @@ public struct SettingsView: View {
     }
 
     // MARK: Sections
+
+    private var configSection: some View {
+        Section("AeroSpace config") {
+            HStack {
+                TextField("Path", text: $pathDraft, prompt: Text("Automatic: ~/.aerospace.toml"))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .focused($pathFocused)
+                    .onSubmit(commitPath)
+                Button("Choose…", action: chooseConfigFile)
+                Button("Use default location") {
+                    configSource.useDefaultLocation()
+                    pathDraft = ""
+                }
+                .disabled(configSource.setting == .automatic && pathDraft.isEmpty)
+            }
+            .onAppear { pathDraft = configSource.setting.text }
+            .onChange(of: pathFocused) { focused in if !focused { commitPath() } }
+            .onChange(of: configSource.setting) { pathDraft = $0.text }
+            LabeledContent("In use") {
+                Text(effectivePathText).textSelection(.enabled).lineLimit(2).truncationMode(.middle)
+            }
+            Label(loadStatusText, systemImage: configSource.result.bindingCount == nil ? "exclamationmark.triangle" : "checkmark.circle")
+                .foregroundStyle(configSource.result.bindingCount == nil ? Color.orange : Color.secondary)
+                .textSelection(.enabled)
+            Text("Empty uses the automatic search: ~/.aerospace.toml, then ~/.config/aerospace/aerospace.toml. A path may start with ~ or be relative to your home folder, and may go through a symlink. The file is only read, never written.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
 
     private var positionSection: some View {
         Section("Position") {
@@ -87,6 +123,51 @@ public struct SettingsView: View {
                 }
             }
         }
+    }
+
+    // MARK: Config path
+
+    private func commitPath() {
+        let setting = ConfigPathSetting(text: pathDraft)
+        if setting != configSource.setting { configSource.setPath(pathDraft) }
+    }
+
+    private var effectivePathText: String {
+        switch configSource.result {
+        case .loaded(let path, _): return path
+        case .failed(let path, _): return path.isEmpty ? "—" : path
+        case .missing(let searched): return "None found (looked in " + searched.joined(separator: ", ") + ")"
+        }
+    }
+
+    private var loadStatusText: String {
+        switch configSource.result {
+        case .loaded(_, let modes):
+            let count = configSource.result.bindingCount ?? 0
+            return "\(count) binding\(count == 1 ? "" : "s") in \(modes.count) mode\(modes.count == 1 ? "" : "s")"
+        case .failed(_, let message): return message
+        case .missing: return "No AeroSpace config found at the default locations."
+        }
+    }
+
+    /// Any file can be picked (`.toml` is what AeroSpace uses, but it is not required); hidden files are shown
+    /// because `~/.aerospace.toml` is one.
+    private func chooseConfigFile() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose your AeroSpace config"
+        panel.message = "Usually aerospace.toml or .aerospace.toml"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.showsHiddenFiles = true
+        if let current = configSource.result.effectivePath {
+            panel.directoryURL = URL(fileURLWithPath: current).deletingLastPathComponent()
+        } else {
+            panel.directoryURL = URL(fileURLWithPath: NSHomeDirectory())
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        pathDraft = url.path
+        configSource.setPath(url.path)
     }
 
     // MARK: Controls

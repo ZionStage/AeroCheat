@@ -96,14 +96,39 @@ public enum AeroSpaceConfigLoader {
         guard let path = paths.first(where: { fileManager.fileExists(atPath: $0) }) else {
             return .missing(searched: paths)
         }
+        return read(path)
+    }
+
+    /// Loads what `setting` points at. A custom path is never mixed with the automatic search: when it cannot
+    /// be used the result says why (`.failed` with that path), it does not fall back to the default location.
+    public static func load(_ setting: ConfigPathSetting, home: String = NSHomeDirectory()) -> ConfigLoadResult {
+        switch setting {
+        case .automatic:
+            return load(paths: defaultPaths(home: home))
+        case .corrupt:
+            return .failed(path: "", message: ConfigPathError.corruptSetting.description)
+        case .custom(let text):
+            let path: String
+            do {
+                path = try ConfigPath.resolve(text, home: home)
+                try ConfigPath.validate(path)
+            } catch {
+                let shown = (try? ConfigPath.resolve(text, home: home)) ?? text
+                return .failed(path: shown, message: (error as? ConfigPathError)?.description ?? "\(error)")
+            }
+            return read(path)
+        }
+    }
+
+    private static func read(_ path: String) -> ConfigLoadResult {
         let data: Data
         do {
             data = try Data(contentsOf: URL(fileURLWithPath: path))
         } catch {
-            return .failed(path: path, message: "Cannot read the file: \(error.localizedDescription)")
+            return .failed(path: path, message: ConfigPathError.unreadable(error.localizedDescription).description)
         }
         guard let text = String(data: data, encoding: .utf8) else {
-            return .failed(path: path, message: "The file is not valid UTF-8 text")
+            return .failed(path: path, message: ConfigPathError.notUTF8.description)
         }
         do {
             return .loaded(path: path, modes: try AeroSpaceConfig.parse(text))

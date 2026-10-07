@@ -9,11 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model: CheatsheetModel
     private let activeMode: ActiveModeController
     private let settings: DisplaySettingsModel
+    private let configSource: ConfigSourceModel
     private let activeToggle = NSMenuItem(title: "Active Mode", action: #selector(toggleActiveMode), keyEquivalent: "")
     private let activeStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let lastSuggestion = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let snoozeItem = NSMenuItem(title: "", action: #selector(toggleSnooze), keyEquivalent: "")
-    private lazy var settingsWindow = SettingsWindow(model: settings)
+    private lazy var settingsWindow = SettingsWindow(model: settings, configSource: configSource)
     private lazy var panel: CheatsheetPanel = {
         let panel = CheatsheetPanel(model: model)
         panel.onDismiss = { [weak self] in self?.hidePanel() }
@@ -28,14 +29,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let source = DemoEventSource()
             // Demo shows the user's saved look but never saves a change.
             settings = DisplaySettingsModel(inMemory: DisplaySettingsStorage().load())
-            model = CheatsheetModel(result: DemoScript.sampleConfigResult(), loader: DemoScript.sampleConfigResult)
+            // The path setting is edited in memory and ignored: the sample config always stands in.
+            configSource = ConfigSourceModel(storage: nil, loader: { _ in DemoScript.sampleConfigResult() })
             activeMode = ActiveModeController(defaults: nil, settings: settings, source: source, inputProbe: { source.currentInput })
         } else {
-            model = CheatsheetModel(result: AeroSpaceConfigLoader.load())
+            configSource = ConfigSourceModel()
             settings = DisplaySettingsModel()
             activeMode = ActiveModeController(settings: settings)
         }
+        model = CheatsheetModel(result: configSource.result)
         super.init()
+        // Every load (new path, menu reload) reaches the panel and the binding index of the active mode.
+        configSource.addObserver { [weak self] result in
+            self?.model.result = result
+            self?.activeMode.updateConfig(result)
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -128,8 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showFromMenu() { showPanel() }
 
     @objc private func reloadConfig() {
-        model.reload()
-        activeMode.updateConfig(model.result)
+        configSource.reload()
     }
 
     private func togglePanel() {

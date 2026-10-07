@@ -1,21 +1,16 @@
 import AeroCheatCore
 import SwiftUI
 
-/// What the panel shows; reloaded from the config on demand.
+/// What the panel shows; `ConfigSourceModel` loads the config and pushes each result here.
 final class CheatsheetModel: ObservableObject {
     @Published var result: ConfigLoadResult
     @Published var query = ""
     /// Bumped every time the panel is shown so the search field grabs focus again.
     @Published var focusToken = 0
 
-    private let loader: () -> ConfigLoadResult
-
-    init(result: ConfigLoadResult, loader: @escaping () -> ConfigLoadResult = { AeroSpaceConfigLoader.load() }) {
+    init(result: ConfigLoadResult) {
         self.result = result
-        self.loader = loader
     }
-
-    func reload() { result = loader() }
 }
 
 struct CheatsheetView: View {
