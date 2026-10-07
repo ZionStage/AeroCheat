@@ -60,19 +60,23 @@ public struct InputRecency: Equatable {
     public var sinceFlagsChanged: TimeInterval
     /// Pointer position in global display coordinates, `nil` when unknown.
     public var pointer: CGPoint?
+    /// The pointer is over a notification (a banner or the Notification Center panel), so a click was on it.
+    public var onNotification: Bool
 
     public init(
         sinceLeftMouseDown: TimeInterval,
         sinceLeftMouseUp: TimeInterval,
         sinceKeyDown: TimeInterval = .infinity,
         sinceFlagsChanged: TimeInterval = .infinity,
-        pointer: CGPoint? = nil
+        pointer: CGPoint? = nil,
+        onNotification: Bool = false
     ) {
         self.sinceLeftMouseDown = sinceLeftMouseDown
         self.sinceLeftMouseUp = sinceLeftMouseUp
         self.sinceKeyDown = sinceKeyDown
         self.sinceFlagsChanged = sinceFlagsChanged
         self.pointer = pointer
+        self.onNotification = onNotification
     }
 
     /// No click seen for a long time.

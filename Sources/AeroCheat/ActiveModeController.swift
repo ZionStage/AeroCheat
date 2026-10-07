@@ -10,6 +10,9 @@ final class ActiveModeController {
     /// It only needs to cover the settling after the toast appears, so it stays far below the shortest
     /// configurable display duration (`DisplaySettings.durationRange`).
     private static let selfFeedbackGuard: TimeInterval = 0.5
+    /// How often the notification windows on screen are looked up while active mode is on. A banner stays up for
+    /// seconds, so a couple of looks per second are enough, and the probe thins them out when the machine is idle.
+    private static let notificationPollInterval: TimeInterval = 0.5
 
     /// `nil` keeps the choice in memory only (demo mode must not touch the user's preferences).
     private let defaults: UserDefaults?
@@ -17,6 +20,10 @@ final class ActiveModeController {
     private let settings: DisplaySettingsModel
     private let source: AeroEventSource
     private let inputProbe: () -> InputRecency
+    /// `nil` (demo mode) looks at no window and so never recognises a notification click.
+    private let windowProbe: (() -> [ScreenWindow])?
+    private var notifications = NotificationHitTest()
+    private var notificationTimer: DispatchSourceTimer?
     private let toast = ToastPanel()
     private var classifier = BurstClassifier()
     private var policy: SuggestionPolicy
@@ -36,20 +43,22 @@ final class ActiveModeController {
         defaults: UserDefaults? = .standard,
         settings: DisplaySettingsModel,
         source: AeroEventSource = AeroSpaceEventStream(),
-        inputProbe: @escaping () -> InputRecency = MouseInputProbe.recency
+        inputProbe: @escaping () -> InputRecency = MouseInputProbe.recency,
+        windowProbe: (() -> [ScreenWindow])? = NotificationWindowProbe.windows
     ) {
         self.defaults = defaults
         self.settings = settings
         policy = SuggestionPolicy(limits: settings.settings.policyLimits)
         self.source = source
         self.inputProbe = inputProbe
+        self.windowProbe = windowProbe
         source.onEvent = { [weak self] in self?.handle($0) }
         // The delays apply to the next suggestion; what the policy remembers stays.
         settings.addObserver { [weak self] in self?.policy.limits = $0.policyLimits }
     }
 
     func startIfEnabled() {
-        if isEnabled { source.start() }
+        if isEnabled { start() }
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -58,14 +67,20 @@ final class ActiveModeController {
         if enabled {
             // A demo replay starts from a clean slate, or the policy would still remember the last run.
             if defaults == nil { policy = SuggestionPolicy(limits: settings.settings.policyLimits); lastSuggestion = nil }
-            source.start()
+            start()
         } else {
             shutdown()
         }
     }
 
+    private func start() {
+        source.start()
+        startNotificationPolling()
+    }
+
     func shutdown() {
         source.stop()
+        stopNotificationPolling()
         focusQueryGeneration += 1
         settleWork?.cancel()
         _ = classifier.flush()
@@ -89,7 +104,13 @@ final class ActiveModeController {
             guard case .bindingTriggered = event else { return }
         }
         // Sampled when the event arrives, 1–3 ms after the fact, so a click still reads as recent.
-        if let verdict = classifier.ingest(event, at: now, input: inputProbe()) {
+        var input = inputProbe()
+        if let windowProbe, input.sinceLastClick < classifier.mouseWindow {
+            // The banner may already be gone, so it is also looked up in what the poll remembers.
+            notifications.observe(windowProbe(), at: now)
+            input.onNotification = notifications.isOverNotification(input.pointer, at: now)
+        }
+        if let verdict = classifier.ingest(event, at: now, input: input) {
             handle(verdict)
         }
         settleWork?.cancel()
@@ -99,6 +120,23 @@ final class ActiveModeController {
         }
         settleWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + classifier.settle + 0.01, execute: work)
+    }
+
+    private func startNotificationPolling() {
+        guard let windowProbe, notificationTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + Self.notificationPollInterval, repeating: Self.notificationPollInterval, leeway: .milliseconds(250))
+        timer.setEventHandler { [weak self] in
+            self?.notifications.observe(windowProbe(), at: ProcessInfo.processInfo.systemUptime)
+        }
+        timer.resume()
+        notificationTimer = timer
+    }
+
+    private func stopNotificationPolling() {
+        notificationTimer?.cancel()
+        notificationTimer = nil
+        notifications.reset()
     }
 
     private func handle(_ verdict: BurstVerdict) {

@@ -40,7 +40,7 @@ If the menu says AeroSpace is not running or too old, start it or update it to 0
 
 ## Limits
 
-- It guesses whether a change came from the mouse, and can be wrong: a Dock click or a notification can trigger a suggestion.
+- It guesses whether a change came from the mouse, and can be wrong: a Dock click can trigger a suggestion.
 - Only the `main` binding mode and a single display are handled.
 - Your AeroSpace config is only read, never written.
 - No network access and no telemetry.

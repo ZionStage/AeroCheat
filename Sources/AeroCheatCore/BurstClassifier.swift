@@ -43,6 +43,8 @@ public enum IgnoreReason: Equatable {
     case noRecentClick
     /// A click happened, but a key or modifier came after it: Cmd-Tab, a launcher, a keyboard shortcut outside AeroSpace.
     case keyAfterClick
+    /// A click on a notification: macOS brings the app to the front and AeroSpace follows it, which is not a mouse habit to correct.
+    case notificationClick
     /// Focus moved without a workspace change but the window it came from is unknown or absent, so nothing can be compared.
     case noFocusBaseline
     /// Focus ended on the window it started on, or on no window at all.
@@ -166,6 +168,7 @@ public struct BurstClassifier {
         let input = events[0].input
         guard input.sinceLastClick < mouseWindow else { return .noRecentClick }
         guard !input.keyFollowedClick else { return .keyAfterClick }
+        guard !input.onNotification else { return .notificationClick }
         return nil
     }
 }

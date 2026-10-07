@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             settings = DisplaySettingsModel(inMemory: DisplaySettingsStorage().load())
             // The path setting is edited in memory and ignored: the sample config always stands in.
             configSource = ConfigSourceModel(storage: nil, loader: { _ in DemoScript.sampleConfigResult() })
-            activeMode = ActiveModeController(defaults: nil, settings: settings, source: source, inputProbe: { source.currentInput })
+            activeMode = ActiveModeController(defaults: nil, settings: settings, source: source, inputProbe: { source.currentInput }, windowProbe: nil)
         } else {
             configSource = ConfigSourceModel()
             settings = DisplaySettingsModel()
