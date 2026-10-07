@@ -1,139 +1,237 @@
+<p align="center">
+  <img src="Assets/AppIcon.png" alt="AeroCheat logo: a folded crib note with the Command symbol" width="128">
+</p>
+
 # AeroCheat
 
-<img src="Assets/AppIcon.png" alt="AeroCheat logo: a folded crib note with the Command symbol" width="128">
-
-macOS menu bar cheatsheet for [AeroSpace](https://github.com/nikitabobko/AeroSpace) shortcuts, with an active mode that suggests the keyboard shortcut when you switch workspace or window with the mouse.
-
-This is a proof of concept: the menu bar app, the cheatsheet panel, and an active mode limited to mouse-driven workspace switches and window changes. The active mode has been unit-tested with synthetic and replayed event streams, but not yet verified by hand against a live AeroSpace.
+A macOS menu bar app that shows the keyboard shortcuts of your [AeroSpace](https://github.com/nikitabobko/AeroSpace) config and, when you switch workspace or window with the mouse, suggests the shortcut you could have used.
 
 ## What it does
 
-- Lives in the menu bar (no Dock icon). The menu offers **Show Cheatsheet**, **Reload AeroSpace Config**, the active mode controls (below), **Settings…** and **Quit AeroCheat**.
-- A global hotkey toggles a floating cheatsheet panel above other windows. **Esc** or pressing the hotkey again closes it.
-- The panel lists the bindings of your AeroSpace config, grouped by mode (`[mode.<name>.binding]`), with modifiers shown as ⌃ ctrl, ⌥ alt, ⇧ shift, ⌘ cmd. A search field filters by key, modifier name, or command.
-- The config is read at launch (and on **Reload AeroSpace Config**) from `~/.aerospace.toml`, falling back to `~/.config/aerospace/aerospace.toml`, unless you [point the app at another file](#using-a-non-default-aerospace-config). Symlinks are followed. The file is only ever read, never written.
-- A missing or unparsable config shows a clear message in the panel instead of a list.
+- **Cheatsheet panel.** A global hotkey opens a floating, searchable list of the bindings in your AeroSpace config.
+- **Active mode.** Optional. After a mouse-driven workspace switch or window change, a small bubble shows the matching shortcut from your config.
+- **Settings window.** Moves and restyles the bubble, tunes how often it appears, and points the app at a non-default AeroSpace config.
 
-### Default hotkey
+This is a proof of concept. Active mode is covered by unit tests on synthetic and replayed event streams; it has not been verified by hand against every AeroSpace setup, so expect rough edges (see [How it works](#how-it-works-and-its-limits)).
 
-**⌃⌥⌘C** (ctrl + option + cmd + C). Three modifiers keep it clear of the usual AeroSpace bindings (`alt-…`, `alt-shift-…`, `ctrl-alt-…`). It is defined in one place: [`Sources/AeroCheat/HotkeyConfig.swift`](Sources/AeroCheat/HotkeyConfig.swift). If another app already owns the combo, the registration fails, a line is logged, and the menu bar item still works.
+## Requirements
 
-## Active mode
+- macOS 13 or newer (`platforms: [.macOS(.v13)]` in `Package.swift`).
+- A Swift 5.9+ toolchain: Xcode, or the command line tools (`xcode-select --install`). Only needed to build from source.
+- [AeroSpace](https://github.com/nikitabobko/AeroSpace) with a config file. The cheatsheet works with any version. **Active mode needs AeroSpace 0.21.0 or newer**, the first version with `aerospace subscribe`; the app checks `aerospace --version` and says so in its menu if yours is older.
+- No macOS permission: no Accessibility, Input Monitoring or Screen Recording prompt. The hotkey uses the Carbon `RegisterEventHotKey` API, and active mode only reads the output of the `aerospace` command-line tool. Nothing in the sources uses an event tap, a global event monitor, screen capture, notifications or the network.
 
-While active mode is on, AeroCheat notices when you switch workspace **with the mouse** (clicking a SketchyBar workspace item, a Dock icon whose app lives on another workspace, or a window of another workspace in Mission Control) and shows a small bubble, by default at the top right of the screen below the menu bar and SketchyBar (clear of the window close and minimise buttons; [Settings](#settings) moves it), with the shortcut you could have used, for example "⌃⌥ 3 — switch to workspace 3". Modifier keys (control, option, shift, command) are drawn as their SF Symbol icons, other keys as keycap text. The shortcut comes from your own `[mode.main.binding]` table; if the config has no binding for that workspace, nothing is shown. For now every mouse-driven switch triggers a suggestion, including ones caused by a notification click or a click that opens an app on another workspace.
+## Install and run
 
-It also notices when a click moves focus to **another window of the same workspace** (typically a window in Mission Control, or in a Dock window list, reaching a window hidden behind others) and suggests the focus shortcuts along the layout of that workspace: `focus left` with "or ⌃⌥ L to focus right" for a horizontal layout, `focus up` and `focus down` for a vertical one. The pair is taken from your config (whichever of the two you bound; the first binding in file order when several do the same). The bubble stays silent when the config has no matching `focus` binding, for floating windows, for macOS native-fullscreen windows and Spaces, and for a click on the window that is already focused. A plain click on a visible tiled window is also silent: the pointer lands inside the window it focuses. In accordion layouts windows overlap, so a click that changes window there is always taken as indirect.
+Clone the repository first:
 
-Switching with the keyboard (your AeroSpace bindings), with Cmd-Tab (a key pressed after the click rules the click out), or through Spotlight or a script never triggers a suggestion. A click on a window of another workspace and a click on another window of the same workspace share the cooldown, the rate limit and the muting below; the cooldown applies per binding (for a focus pair, to the first one), and pressing either binding of the pair mutes it.
+```sh
+git clone https://github.com/ZionStage/AeroCheat.git
+cd AeroCheat
+```
 
-### How to try it
+### 1. Run from source
 
-1. Make sure AeroSpace 0.21.0-Beta or newer is running (`aerospace --version`).
-2. `swift run AeroCheat`, then open the menu bar item and tick **Active Mode**. It is off by default; the choice is saved in `UserDefaults`.
-3. Click a workspace item in your bar, a Dock icon of an app on another workspace, or (three-finger swipe up) a window of another workspace in Mission Control; in an accordion workspace, click another window of it in Mission Control. The bubble appears within a fraction of a second and stays for 4 seconds (by default), then fades.
-4. Press the suggested shortcut instead: no bubble, and that shortcut is muted for the rest of the day.
+```sh
+swift run AeroCheat
+```
 
-The menu shows the connection state (for example "AeroSpace not found", "AeroSpace 0.20.x is too old" or "AeroSpace is not running, retrying…"), a **Last suggestion** line and **Snooze Suggestions for 1 Hour**. The connection is re-established with a growing delay if AeroSpace exits or restarts.
+The first run compiles the app. The terminal stays attached; stop it with `Ctrl-C` or **Quit AeroCheat** in the menu.
 
-To keep it quiet (these are the defaults, see [Settings](#settings)): the same suggestion repeats at most every 30 s, at most one bubble appears every 5 s, a shortcut you press after a suggestion is muted for the day, and a suggestion ignored three times is muted for the day too.
+### 2. Build a release binary
 
-### How it works, and why it needs no permission
+```sh
+swift build -c release
+```
 
-AeroCheat runs `aerospace subscribe --no-send-initial focus-changed focused-workspace-changed binding-triggered mode-changed` as a child process (found in `/opt/homebrew/bin`, `/usr/local/bin`, then `PATH`) and reads its JSON events. AeroSpace emits `binding-triggered` whenever a keyboard binding fires, so a workspace change that arrives without one did not come from your AeroSpace shortcuts. Events less than about 120 ms apart form a burst; a burst with a binding is keyboard and ignored, a burst with a net workspace change and no binding is a candidate, and so is a burst of `focus-changed` events alone that moves focus to another window of the same workspace. A candidate becomes a mouse action only if the left mouse button went down or up within the last 0.8 s and no key or modifier came after that click, both read with `CGEventSource.secondsSinceLastEventType`. For a same-workspace candidate AeroCheat also runs the read-only `aerospace list-windows --all --format '%{window-id} %{window-layout}'` once to read the layout of the window that took focus, and for a tiled one compares the pointer position (`CGEvent(source: nil)`) with the window's bounds from the window server.
+The binary is `.build/release/AeroCheat` (a single executable, about 1.3 MB). To put it on your `PATH`:
 
-None of this needs Accessibility, Input Monitoring or Screen Recording: the event stream is a user-level socket behind the `aerospace` CLI, and the click recency counters are not privacy-gated. AeroCheat does not use an event tap or a global `NSEvent` monitor, and it does not post system notifications. It only runs read-only `aerospace` commands (`--version`, `subscribe`, `list-windows`) and changes nothing in your AeroSpace or SketchyBar configuration.
+```sh
+mkdir -p ~/.local/bin
+cp .build/release/AeroCheat ~/.local/bin/
+```
 
-Out of scope for now: suggestions for a direct click on a visible window, telling a Mission Control click from a Dock click or from a click that opens an app (so the wording never mentions Mission Control), choosing a single focus direction, drag and resize hints, Cmd-Tab suggestions, binding modes other than `main`, and multiple monitors.
+Make sure `~/.local/bin` is in your `PATH`, or use another folder that is (for example `/usr/local/bin`, which may need `sudo`). Then start it from any terminal:
 
-Known limits of the same-workspace case: a click on a Dock icon or a menu item that opens or raises a window of the same workspace is indistinguishable from a window click and shows the focus suggestion; in a tiled layout a Mission Control thumbnail can sit over the window's real frame, which reads as a direct click and stays silent; in an accordion layout a click that closes a window or opens one can look like an indirect click. Closing a window (focus falls to a neighbour) and opening a window from an empty workspace stay silent.
+```sh
+AeroCheat &
+```
 
-## Using a non-default AeroSpace config
+AeroCheat is a menu bar app: it has no Dock icon and no window at launch. Look for the crib-note icon in the menu bar.
 
-If your AeroSpace config is not at `~/.aerospace.toml` or `~/.config/aerospace/aerospace.toml`, open **Settings…** and use the **AeroSpace config** section at the top:
+### 3. Start at login
 
-- type the path in the field and press Return, or click **Choose…** and pick the file (any file can be picked; AeroSpace's is usually `aerospace.toml`; hidden files are shown);
-- **Use default location** (or emptying the field) goes back to the automatic search above.
+A bare executable is not an app bundle, so the simplest way is a LaunchAgent that you create yourself. This writes one for the binary installed in `~/.local/bin` above (the shell expands `$HOME`, because launchd does not expand `~`):
 
-The change applies at once: the cheatsheet panel, the active mode's shortcut suggestions and **Reload AeroSpace Config** all use the new path, and the section shows the path in use and either the number of bindings found or the error. The path is saved in `UserDefaults` (`config.path`, nothing is stored while it is automatic).
+```sh
+mkdir -p ~/Library/LaunchAgents
+cat > ~/Library/LaunchAgents/local.aerocheat.plist <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>local.aerocheat</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$HOME/.local/bin/AeroCheat</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>
+EOF
+```
 
-A path may start with `~`, be relative (taken from your home folder) or go through a symlink. A custom path is never mixed with the automatic search: if the file is missing, is a folder, cannot be read, is not UTF-8 or is not valid TOML, you get that error in the settings and in the panel rather than the default config. Likewise a damaged saved value is reported, not silently replaced. The file is only read, never written. The app does not detect the path from AeroSpace and does not watch the file: use **Reload AeroSpace Config** after editing it. In `--demo` mode the sample config always stands in and the path is not saved.
+Load it (it also starts at every login), and unload it to stop and disable it:
 
-## Settings
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.aerocheat.plist
+launchctl bootout gui/$(id -u)/local.aerocheat
+```
 
-**Settings…** in the menu bar menu opens a window that configures the AeroSpace config path (above) and the bubble and when it appears. Every change applies at once, without restarting, and is saved in `UserDefaults` (one `display.*` entry per setting). The defaults are the behaviour described above, so nothing changes until you change something.
+The plist syntax was checked with `plutil -lint`. The `launchctl` commands were not run while writing this README, so check `launchctl list | grep aerocheat` after loading. The app looks for `aerospace` in `/opt/homebrew/bin` and `/usr/local/bin` before `PATH`, so the minimal environment of a LaunchAgent is not a problem for Homebrew installs.
 
-| Group | What you can set |
-|-------|------------------|
-| Position | Where the bubble sits, on a 3x3 grid like the screen: the four corners, the middle of each edge and the centre (default: top right). Horizontal and vertical margins (default 16 pt and 80 pt) keep it clear of the menu bar, SketchyBar and window buttons; the margin is measured from the edge the anchor is on and ignored along a centred axis. The bubble always stays inside the visible frame. |
-| Look | Background, text and icon/key colours (each either the system look or a picked colour), overall opacity (30–100 %), size (75–175 %, scales fonts, icons and padding), how long it stays (1–30 s, default 4). |
-| Delays | Minimum time between any two tips (0–600 s, default 5) and between two identical tips (0–3600 s, default 30). |
-| Content | Modifier keys as icons or as text glyphs, and which kinds of suggestions are on (workspace switches, window focus). |
+Alternative: **System Settings → General → Login Items & Extensions** lets you add a file with the **+** button. Whether macOS runs a bare executable from there without opening a Terminal window was **not checked**; prefer the LaunchAgent.
 
-**Reset to defaults** restores everything. **Preview** shows the bubble with the current settings, using the demo script's sample suggestion and the real bubble view, so you can tune the position and colours without waiting for a mouse switch. Values outside their range are clamped, and a corrupt stored value falls back to its default.
+### 4. App bundle
 
-Behind it: `DisplaySettings` (UI-free, in `AeroCheatCore`) holds the values, their ranges and the policy delays; `DisplaySettingsStorage` persists them; `BubbleStyle(settings:)` maps them to the bubble; `SettingsView` is the window. To add a kind of suggestion, add a case to `SuggestionKind` and a branch in `Suggestion.kind`: the window lists every case, so it needs no change. In demo mode the window edits your saved look in memory only, nothing is written.
+A `.app` bundle is not provided yet: the repository has no `Info.plist` or packaging script, and `Assets/AppIcon.icns` is not wired into anything. Use one of the options above.
 
-Needs no permission. The window and the live look are verified by unit tests and offscreen renderings only; try the window by hand with `swift run AeroCheat --demo` and the **Preview** button.
+## Usage
 
-## Demo mode and offscreen tests
+### Menu bar menu
 
-Neither needs AeroSpace, a permission or a click, so the bubble can be checked without touching a live session.
+| Item | What it does |
+|------|--------------|
+| Show Cheatsheet | Opens the panel. |
+| Reload AeroSpace Config | Re-reads the config. The file is not watched, so use this after editing it. |
+| Hotkey: ⌃⌥⌘C | Reminder of the hotkey (or "Hotkey unavailable", see [Troubleshooting](#troubleshooting)). |
+| Active Mode | Tick to turn active mode on. Off by default; the choice is remembered. |
+| (status line) | "Active mode is off", "Connecting to AeroSpace…", "Watching for mouse workspace switches", "AeroSpace not found…", "AeroSpace x.y.z is too old…" or "AeroSpace is not running, retrying…". |
+| Last suggestion | The last bubble shown, or "none yet". |
+| Snooze Suggestions for 1 Hour | Silences bubbles for an hour; the item becomes "Resume Suggestions". |
+| Settings… (⌘,) | Opens the settings window. |
+| Quit AeroCheat (⌘Q) | Quits. |
+
+### Cheatsheet panel
+
+The default global hotkey is **⌃⌥⌘C** (ctrl + option + cmd + C). It is defined in [`Sources/AeroCheat/HotkeyConfig.swift`](Sources/AeroCheat/HotkeyConfig.swift); to change it, edit that file and rebuild. The hotkey toggles the panel; **Esc** also closes it.
+
+The panel lists the bindings of the `[mode.<name>.binding]` tables of your config, one section per mode, with modifiers shown as ⌃ ctrl, ⌥ alt, ⇧ shift, ⌘ cmd. The search field has focus when the panel opens and filters by key, modifier name or command. The footer shows which config file is in use. If the config is missing or cannot be parsed, the panel says so instead of showing a list.
+
+### Active mode
+
+Tick **Active Mode** in the menu. AeroCheat then watches for two kinds of mouse action and shows a bubble (by default at the top right of the screen, for 4 seconds) with the shortcut from your `[mode.main.binding]` table:
+
+- **Workspace switch** with the mouse, for example clicking a workspace item in a bar, or a window of another workspace in Mission Control. With a binding `alt-3 = 'workspace 3'` you get a bubble such as "⌥ 3 — switch to workspace 3". If you land back on the previous workspace and you have a `workspace-back-and-forth` binding, the bubble adds "or … to toggle back".
+- **Focus change inside a workspace** by clicking another window of it. The bubble suggests your `focus left` / `focus right` (horizontal layouts) or `focus up` / `focus down` (vertical layouts) binding.
+
+Nothing is shown when your config has no matching binding, when you used the keyboard, or when AeroCheat cannot tell it was a mouse action. Only the `main` mode is considered.
+
+Quiet defaults (all adjustable in the settings):
+
+- the same suggestion repeats at most every 30 s, and at most one bubble appears every 5 s;
+- if you press the suggested shortcut afterwards, it is muted for the rest of the day;
+- a suggestion you ignore three times (60 s without using the shortcut counts as ignored) is muted for the rest of the day.
 
 ### Demo mode
 
 ```sh
 swift run AeroCheat --demo
+# or, with a built binary:
+AeroCheat --demo
 ```
 
-Plays a short script of fixture events (about 35 s) instead of the real AeroSpace stream: a mouse switch (bubble), a keyboard switch (nothing), the same mouse switch repeated (rate limited, nothing), then two more mouse switches, the last one with the toggle-back hint. The events go through the same burst classifier, action resolver, suggestion policy and bubble as the real mode; only their source differs. Each step is logged with what you should see.
+Plays a built-in script of about 35 seconds instead of the real AeroSpace stream: a mouse switch (bubble), a keyboard switch (nothing), the same mouse switch again (rate limited), then two more switches, the last with the toggle-back hint. Active mode starts on; untick and tick it to replay. Demo mode does not start `aerospace subscribe`, uses a built-in sample config instead of yours, and does not save settings changes (it does read your saved bubble look). The script is `Sources/AeroCheatCore/DemoScript.swift`.
 
-Demo mode never starts `aerospace subscribe`, never reads `~/.aerospace.toml` (a built-in sample config stands in, also for the cheatsheet) and never writes your preferences (it does read your saved display settings, so the bubble looks the way you configured it). Active Mode is on from the start; untick and tick it in the menu to replay.
+### Settings window
 
-The script is `DemoScript.scenarios` in [`Sources/AeroCheatCore/DemoScript.swift`](Sources/AeroCheatCore/DemoScript.swift), a list of scenarios (events, pause before it, expected outcome). `DemoScriptTests` replays it through the real pipeline with a simulated clock and fails if a scenario does not do what it says, so add a scenario to the list and the test covers it.
+Every change applies at once and is saved. **Preview** shows the bubble with the current settings; **Reset to defaults** restores the bubble settings (the config path is managed in its own section).
 
-### Offscreen rendering tests
+| Section | What you can set |
+|---------|------------------|
+| AeroSpace config | A path to your config (type it and press Return, or **Choose…**). **Use default location** goes back to the automatic search. Shows the file in use and how many bindings were found, or the error. |
+| Position | Where the bubble sits on a 3×3 grid (corners, edge middles, centre; default top right). Horizontal and vertical margins (default 16 pt and 80 pt, 0–400 pt), ignored along a centred axis. |
+| Look | Background, text and icon/key colours (system look or a picked colour), opacity (30–100 %), size (75–175 %), how long it stays (1–30 s, default 4). |
+| Delays | Minimum time between two bubbles (0–600 s, default 5) and between two identical bubbles (0–3600 s, default 30). |
+| Content | Modifier keys as icons or as text; which kinds of suggestions are on (workspace switches, window focus). |
 
-The bubble (`BubbleView`) and the value type that configures it (`BubbleStyle`: anchor, margins, duration, sizes, colours; `DisplaySettings()` maps to the shipped values, top right) live in the `AeroCheatUI` target. `Tests/AeroCheatUITests` renders the view into a bitmap with `NSHostingView` and `cacheDisplay`, with no screen, window server window or permission, and asserts what is deterministic:
+**Config path.** The automatic search reads `~/.aerospace.toml`, then `~/.config/aerospace/aerospace.toml`, the first that exists. A custom path may start with `~`, be relative to your home folder, or go through a symlink. A custom path is never mixed with the automatic search: if the file is missing, is a folder, is unreadable, is not UTF-8 or is not valid TOML, you get that error in the settings and the panel, not the default config.
 
-- the hint line making the bubble taller, and the size setting scaling it;
-- the origin computed for a fake screen frame (the nine anchors, the margins, a secondary screen), including that the top edge clears SketchyBar (about 74 pt from the screen top);
-- the default 4 s duration and the other defaults, and that the settings map to the style (size, opacity, colours, icons versus text);
-- modifier keys drawn as icons, with the glyph text as fallback when an SF Symbol is unavailable, and that the two renderings differ.
+## How it works, and its limits
 
-There is no golden-image comparison: pixels vary with the OS version, the appearance and the material blur. To look at the result, set `AEROCHEAT_SNAPSHOT_DIR` and the tests also write each rendering there as a PNG:
+- AeroCheat **only reads** your AeroSpace config (a small built-in TOML reader looks at the `[mode.*.binding]` tables). It never writes it, and it runs only read-only `aerospace` commands: `--version`, `subscribe` and `list-windows`.
+- Active mode starts `aerospace subscribe --no-send-initial focus-changed focused-workspace-changed binding-triggered mode-changed` as a child process and reads its events. AeroSpace reports a `binding-triggered` event when a keyboard binding fires, so a workspace or focus change that arrives without one did not come from your shortcuts. If, in addition, the left mouse button went down or up in the last 0.8 s and no key was pressed after it (read with `CGEventSource.secondsSinceLastEventType`, which needs no permission), the change is taken as a mouse action.
+- No network access and no telemetry. The only data kept is your settings in `UserDefaults`.
+- It guesses, and the guess can be wrong. Known limits:
+  - a click on a Dock icon or a menu item that raises another window of the same workspace looks like a window click and may produce a focus suggestion;
+  - every mouse-driven workspace switch can trigger a suggestion, including one caused by clicking a notification or opening an app that lives on another workspace;
+  - a click directly on a visible tiled window is deliberately silent;
+  - in accordion layouts, a click that closes or opens a window can look like an indirect click;
+  - Cmd-Tab, Spotlight and scripts are never suggested; only the `main` binding mode and a single display are handled.
+
+## Troubleshooting
+
+- **"AeroSpace not found" / "AeroSpace is not running, retrying…" in the menu.** Install AeroSpace and start it. The app searches `/opt/homebrew/bin`, `/usr/local/bin`, then `PATH`, and retries with a growing delay.
+- **"AeroSpace x.y.z is too old".** Update AeroSpace to 0.21.0 or newer (`aerospace --version`).
+- **"AeroSpace config not found" or "Cannot read the AeroSpace config".** Check the file exists at one of the two default paths, or set its path in **Settings… → AeroSpace config**. The message in the panel and the settings names the path and the reason (for example a TOML syntax error). After editing the file, use **Reload AeroSpace Config**.
+- **The panel says "No bindings found".** The config has no `[mode.<name>.binding]` table.
+- **The hotkey does nothing / the menu says "Hotkey unavailable".** Another app owns ⌃⌥⌘C. The failure is logged (`AeroCheat: could not register the global hotkey`), and the menu item still works. Free the combination, or change it in `HotkeyConfig.swift` and rebuild.
+- **No bubble appears.**
+  - Is **Active Mode** ticked and the status "Watching for mouse workspace switches"?
+  - Does your config's `[mode.main.binding]` have a binding for that workspace (or a `focus` binding)?
+  - Is the bubble snoozed, muted for the day, or inside a cooldown? Lower the delays in **Delays**.
+  - Is that kind of suggestion switched off in **Content**?
+  - Try `AeroCheat --demo` to check that the bubble itself shows.
+- **Reset the settings.** Quit the app, then delete its `UserDefaults` domain (a bare executable uses its name as the domain; keys are `activeModeEnabled`, `config.path` and `display.*`):
+
+  ```sh
+  defaults delete AeroCheat
+  ```
+
+## Uninstall
+
+1. Stop the app: **Quit AeroCheat** in the menu, or `pkill -x AeroCheat`.
+2. Remove the start-at-login agent, if you created one:
+
+   ```sh
+   launchctl bootout gui/$(id -u)/local.aerocheat
+   rm ~/Library/LaunchAgents/local.aerocheat.plist
+   ```
+
+3. Remove the binary: `rm ~/.local/bin/AeroCheat` (or wherever you put it).
+4. Delete the settings: `defaults delete AeroCheat`.
+
+Your AeroSpace config is never modified, so there is nothing to restore.
+
+## Development
 
 ```sh
-AEROCHEAT_SNAPSHOT_DIR=/tmp/aerocheat-bubbles swift test --filter AeroCheatUITests
+swift build   # debug build
+swift test    # unit tests, including offscreen rendering of the bubble
 ```
 
-## Build and run
+The sources are organised as three targets:
 
-Requires macOS 13+ and a Swift 5.9+ toolchain (Xcode or Command Line Tools).
+- `Sources/AeroCheatCore`: UI-free logic (TOML reader, binding parser, key formatting, search filter, active-mode event model and classifier, suggestion policy, settings and their storage, config path handling, demo script).
+- `Sources/AeroCheatUI`: the suggestion bubble, the menu bar logo, the settings models and the settings view.
+- `Sources/AeroCheat`: the menu bar app (status item, hotkey, panel, `aerospace subscribe` process, mouse probe, toast, settings window).
+
+Tests are in `Tests/AeroCheatCoreTests` and `Tests/AeroCheatUITests`.
+
+The logo is drawn by a script that rewrites `Assets/AppIcon.png`, `Assets/AppIcon.icns`, the menu bar glyphs and the embedded glyph data; run it from the repository root:
 
 ```sh
-swift build            # debug build
-swift run AeroCheat    # launch; look for the crib-note logo in the menu bar
-swift run AeroCheat --demo  # same, playing fixture events instead of AeroSpace's (see above)
-swift test             # unit tests and offscreen bubble rendering tests
+swift scripts/render-logo.swift
 ```
 
-For a release binary: `swift build -c release`, then run `.build/release/AeroCheat`.
+The GitHub workflow (`.github/workflows/ci.yml`) builds and tests on a macOS runner for pull requests and pushes to `main`. It runs only on public repositories; on a private one the job is skipped.
 
-### Continuous integration
+## Licence
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `swift build` and `swift test` on a GitHub-hosted macOS runner for pull requests and pushes to `main`. It is gated to public repositories (a skipped job starts no runner and costs nothing), so it does nothing while this repository is private. Once the repository is public it runs on its own; to run it by hand, use the **Actions** tab (**CI** → **Run workflow**) or `gh workflow run ci.yml`.
-
-## Permissions
-
-None. The hotkey uses the Carbon `RegisterEventHotKey` API, which needs neither Accessibility nor Input Monitoring, and active mode is permission-free too (see above). The app does not touch the network and reads only your AeroSpace config.
-
-## Layout
-
-| Path | Role |
-|------|------|
-| `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, window layout, suggestion policy; display settings and their storage; AeroSpace config path resolution and storage; demo script |
-| `Sources/AeroCheatUI` | The menu bar logo (`MenuBarLogo`, glyph embedded by `MenuBarGlyphData`); the suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView`; the live settings model, the live config source (`ConfigSourceModel`) and the settings window's `SettingsView` |
-| `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event sources (real stream, demo), mouse and key recency probe, focused window probe, toast panel, settings window |
-| `Assets`, `scripts/render-logo.swift` | The app icon and menu bar glyph; run `swift scripts/render-logo.swift` to redraw them and regenerate the embedded glyph data |
-| `Tests/AeroCheatCoreTests` | Unit tests, using `Fixtures/sample-aerospace.toml` and sanitised `golden-replay.jsonl` and `mission-control-replay.jsonl` replays rather than a real config or capture; the demo script replay |
-| `Tests/AeroCheatUITests` | Offscreen rendering and geometry tests of the bubble |
+MIT, see [`LICENSE`](LICENSE).
