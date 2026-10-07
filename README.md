@@ -1,5 +1,7 @@
 # AeroCheat
 
+<img src="Assets/AppIcon.png" alt="AeroCheat logo: a folded crib note with the Command symbol" width="128">
+
 macOS menu bar cheatsheet for [AeroSpace](https://github.com/nikitabobko/AeroSpace) shortcuts, with an active mode that suggests the keyboard shortcut when you switch workspace or window with the mouse.
 
 This is a proof of concept: the menu bar app, the cheatsheet panel, and an active mode limited to mouse-driven workspace switches and window changes. The active mode has been unit-tested with synthetic and replayed event streams, but not yet verified by hand against a live AeroSpace.
@@ -110,7 +112,7 @@ Requires macOS 13+ and a Swift 5.9+ toolchain (Xcode or Command Line Tools).
 
 ```sh
 swift build            # debug build
-swift run AeroCheat    # launch; look for the keyboard icon in the menu bar
+swift run AeroCheat    # launch; look for the crib-note logo in the menu bar
 swift run AeroCheat --demo  # same, playing fixture events instead of AeroSpace's (see above)
 swift test             # unit tests and offscreen bubble rendering tests
 ```
@@ -130,7 +132,8 @@ None. The hotkey uses the Carbon `RegisterEventHotKey` API, which needs neither 
 | Path | Role |
 |------|------|
 | `Sources/AeroCheatCore` | UI-free logic: minimal TOML reader, AeroSpace binding parser, key formatting, search filter; active mode event model, burst classifier, action resolver, window layout, suggestion policy; display settings and their storage; AeroSpace config path resolution and storage; demo script |
-| `Sources/AeroCheatUI` | The suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView`; the live settings model, the live config source (`ConfigSourceModel`) and the settings window's `SettingsView` |
+| `Sources/AeroCheatUI` | The menu bar logo (`MenuBarLogo`, glyph embedded by `MenuBarGlyphData`); the suggestion bubble: `BubbleStyle` (position, colours, sizes), `BubbleContent`, `BubbleView`; the live settings model, the live config source (`ConfigSourceModel`) and the settings window's `SettingsView` |
 | `Sources/AeroCheat` | Menu bar app: status item, global hotkey, floating panel, SwiftUI view; active mode event sources (real stream, demo), mouse and key recency probe, focused window probe, toast panel, settings window |
+| `Assets`, `scripts/render-logo.swift` | The app icon and menu bar glyph; run `swift scripts/render-logo.swift` to redraw them and regenerate the embedded glyph data |
 | `Tests/AeroCheatCoreTests` | Unit tests, using `Fixtures/sample-aerospace.toml` and sanitised `golden-replay.jsonl` and `mission-control-replay.jsonl` replays rather than a real config or capture; the demo script replay |
 | `Tests/AeroCheatUITests` | Offscreen rendering and geometry tests of the bubble |

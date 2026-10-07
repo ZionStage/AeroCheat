@@ -65,7 +65,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func configureStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "AeroCheat")
+            // The logo is embedded in the binary; the SF Symbol only covers a decoding failure.
+            let image = MenuBarLogo.makeImage() ?? NSImage(systemSymbolName: "keyboard", accessibilityDescription: nil)
+            image?.accessibilityDescription = "AeroCheat"
+            button.image = image
         }
 
         let menu = NSMenu()
