@@ -6,9 +6,9 @@
 
 A small macOS menu bar app that shows the shortcuts of your [AeroSpace](https://github.com/nikitabobko/AeroSpace) config, and nudges you toward the keyboard when you reach for the mouse.
 
-- **Cheatsheet.** A global hotkey opens a searchable panel with the bindings of your AeroSpace config.
+- **Cheatsheet.** A global hotkey opens a searchable panel with the bindings of your AeroSpace config, grouped by category; with Active Mode on, it also marks the shortcuts you rarely press.
 - **Suggestions.** After you switch workspace or window with the mouse, a small bubble shows the shortcut you could have used.
-- **Settings.** Choose where the bubble appears, its colours and how long it stays.
+- **Settings.** Choose the cheatsheet hotkey, where the bubble appears, its colours and how long it stays.
 
 ## Requirements
 
@@ -28,13 +28,13 @@ To build it yourself, clone the repository and run `scripts/build-app.sh`. It pr
 
 ## Use
 
-Press **⌃⌥⌘C** to open or close the cheatsheet (Esc also closes it).
+Press **⌃⌥⌘C** (or the hotkey you set in Settings) to open or close the cheatsheet (Esc also closes it).
 
 The menu bar menu lets you show the cheatsheet, reload the config, turn **Active Mode** on (suggestions are off by default), snooze suggestions, open Settings, switch **Launch at Login** on or off, and quit.
 
 With Active Mode on, clicking over to workspace 3 with the mouse while your config has `alt-3 = 'workspace 3'` shows a bubble such as "⌥ 3 — switch to workspace 3".
 
-The Settings window sets the bubble position, colours and timing, and the path of your AeroSpace config. By default AeroCheat reads `~/.aerospace.toml`, then `~/.config/aerospace/aerospace.toml`.
+The Settings window sets the cheatsheet hotkey, the bubble position, colours and timing, and the path of your AeroSpace config. By default AeroCheat reads `~/.aerospace.toml`, then `~/.config/aerospace/aerospace.toml`.
 
 If the menu says AeroSpace is not running or too old, start it or update it to 0.21.0 or newer.
 

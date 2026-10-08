@@ -1,3 +1,4 @@
+import AeroCheatCore
 import Carbon.HIToolbox
 
 /// Registers one system-wide hotkey with the Carbon event manager.
@@ -33,5 +34,17 @@ final class GlobalHotkey {
     deinit {
         if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
         if let handlerRef { RemoveEventHandler(handlerRef) }
+    }
+}
+
+extension GlobalHotkey {
+    /// Registers `hotkey`; Carbon hotkeys need no Accessibility or Input Monitoring permission.
+    convenience init?(_ hotkey: Hotkey, action: @escaping () -> Void) {
+        var modifiers = 0
+        if hotkey.modifiers.contains(.ctrl) { modifiers |= controlKey }
+        if hotkey.modifiers.contains(.alt) { modifiers |= optionKey }
+        if hotkey.modifiers.contains(.shift) { modifiers |= shiftKey }
+        if hotkey.modifiers.contains(.cmd) { modifiers |= cmdKey }
+        self.init(keyCode: hotkey.keyCode, modifiers: UInt32(modifiers), action: action)
     }
 }

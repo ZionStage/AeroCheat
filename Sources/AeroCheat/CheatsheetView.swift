@@ -7,6 +7,10 @@ final class CheatsheetModel: ObservableObject {
     @Published var query = ""
     /// Bumped every time the panel is shown so the search field grabs focus again.
     @Published var focusToken = 0
+    /// Shown in the footer; the app updates it when the settings change it.
+    @Published var hotkey = Hotkey.default
+    /// Presses per shortcut, to mark the rarely used ones.
+    @Published var usage = ShortcutUsage()
 
     init(result: ConfigLoadResult) {
         self.result = result
@@ -58,7 +62,9 @@ struct CheatsheetView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16, pinnedViews: []) {
                         ForEach(filtered) { mode in
-                            ModeSection(mode: mode)
+                            // Rarity is measured on the whole mode, so filtering does not change which rows are marked.
+                            let full = modes.first { $0.name == mode.name } ?? mode
+                            ModeSection(mode: mode, rarelyUsed: model.usage.rarelyUsed(in: full))
                         }
                     }
                     .padding(16)
@@ -94,33 +100,72 @@ struct CheatsheetView: View {
                 Text(path).lineLimit(1).truncationMode(.middle)
             }
             Spacer()
-            Text("esc or \(HotkeyConfig.display) to close")
+            if hasRarelyUsed {
+                Label("rarely used", systemImage: "circle.fill").labelStyle(RareLegendStyle())
+            }
+            Text("esc or \(model.hotkey.display) to close")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
     }
+
+    private var hasRarelyUsed: Bool {
+        guard case .loaded(_, let modes) = model.result else { return false }
+        return modes.contains { !model.usage.rarelyUsed(in: $0).isEmpty }
+    }
 }
 
+/// One binding mode, its bindings grouped by category (focus, move, workspaces...).
 private struct ModeSection: View {
     let mode: BindingMode
+    /// Ids of the bindings to mark as rarely used.
+    let rarelyUsed: Set<String>
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Mode: \(mode.name)")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
-            ForEach(mode.bindings) { binding in
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    KeyCap(combo: binding.combo)
-                        .frame(width: 150, alignment: .leading)
-                    Text(binding.command)
-                        .font(.system(.body, design: .monospaced))
-                        .lineLimit(2)
-                    Spacer(minLength: 0)
+            ForEach(mode.sections, id: \.category) { section in
+                Text(section.category.title)
+                    .font(.caption.weight(.semibold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 6)
+                ForEach(section.bindings) { binding in
+                    row(binding, rare: rarelyUsed.contains(binding.id))
                 }
             }
+        }
+    }
+
+    private func row(_ binding: AeroCheatCore.Binding, rare: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            KeyCap(combo: binding.combo)
+                .frame(width: 150, alignment: .leading)
+            Text(binding.command)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(2)
+            Spacer(minLength: 0)
+            if rare {
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 7))
+                    .foregroundStyle(.orange)
+                    .help("Rarely used: worth practising")
+                    .accessibilityLabel("Rarely used")
+            }
+        }
+    }
+}
+
+/// The footer legend: the orange dot of the rows, then its meaning.
+private struct RareLegendStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon.font(.system(size: 7)).foregroundStyle(.orange)
+            configuration.title
         }
     }
 }

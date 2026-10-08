@@ -2,25 +2,33 @@ import AeroCheatCore
 import AppKit
 import SwiftUI
 
-/// The settings window's content: position, look, timing and behaviour of the suggestion bubble. It only
-/// edits `DisplaySettingsModel`, which clamps, saves and applies every change at once.
+/// The settings window's content: the cheatsheet hotkey, then the position, look, timing and behaviour of the
+/// suggestion bubble. It only edits the models, which check, save and apply every change at once.
 public struct SettingsView: View {
     @ObservedObject var model: DisplaySettingsModel
     @ObservedObject var configSource: ConfigSourceModel
+    @ObservedObject var hotkey: HotkeySettingsModel
     let onPreview: () -> Void
     /// What the path field shows while it is being edited; applied on Return or when the field loses focus.
     @State private var pathDraft = ""
     @FocusState private var pathFocused: Bool
 
-    public init(model: DisplaySettingsModel, configSource: ConfigSourceModel, onPreview: @escaping () -> Void) {
+    public init(
+        model: DisplaySettingsModel,
+        configSource: ConfigSourceModel,
+        hotkey: HotkeySettingsModel = HotkeySettingsModel(storage: nil),
+        onPreview: @escaping () -> Void
+    ) {
         self.model = model
         self.configSource = configSource
+        self.hotkey = hotkey
         self.onPreview = onPreview
     }
 
     public var body: some View {
         VStack(spacing: 0) {
             Form {
+                hotkeySection
                 configSection
                 positionSection
                 lookSection
@@ -40,6 +48,24 @@ public struct SettingsView: View {
     }
 
     // MARK: Sections
+
+    private var hotkeySection: some View {
+        Section("Cheatsheet hotkey") {
+            HStack {
+                Text("Opens and closes the cheatsheet")
+                Spacer()
+                HotkeyRecorder(model: hotkey)
+                Button("Default") { hotkey.resetToDefault() }
+                    .disabled(hotkey.hotkey == .default)
+            }
+            if let problem = hotkey.problem {
+                Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+            }
+            Text("Click the shortcut, then press the new combination with at least one of ⌃, ⌥ or ⌘. Esc cancels.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
 
     private var configSection: some View {
         Section("AeroSpace config") {
@@ -241,5 +267,55 @@ public struct SettingsView: View {
                 .labelsHidden()
                 .disabled(custom == nil)
         }
+    }
+}
+
+/// Shows the hotkey; once clicked, the next key press in this window becomes the new one (Esc alone cancels).
+/// A local event monitor only sees keys sent to AeroCheat's own windows, so it needs no permission.
+private struct HotkeyRecorder: View {
+    @ObservedObject var model: HotkeySettingsModel
+    @State private var monitor: Any?
+    @State private var observers: [NSObjectProtocol] = []
+
+    var body: some View {
+        Button(monitor == nil ? model.hotkey.display : "Press a shortcut…") {
+            monitor == nil ? start() : stop()
+        }
+        .font(.body.monospaced())
+        .frame(minWidth: 140)
+        .onDisappear(perform: stop)
+    }
+
+    private func start() {
+        guard let window = NSApp.keyWindow else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.window === window else { return event }
+            let modifiers = Self.modifiers(event.modifierFlags)
+            if event.keyCode == 53, modifiers.isEmpty {
+                stop()
+            } else if model.record(keyCode: UInt32(event.keyCode), modifiers: modifiers) {
+                stop()
+            }
+            return nil
+        }
+        observers = [NSWindow.didResignKeyNotification, NSWindow.willCloseNotification].map {
+            NotificationCenter.default.addObserver(forName: $0, object: window, queue: .main) { _ in stop() }
+        }
+    }
+
+    private func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+    }
+
+    private static func modifiers(_ flags: NSEvent.ModifierFlags) -> Set<Modifier> {
+        var result: Set<Modifier> = []
+        if flags.contains(.control) { result.insert(.ctrl) }
+        if flags.contains(.option) { result.insert(.alt) }
+        if flags.contains(.shift) { result.insert(.shift) }
+        if flags.contains(.command) { result.insert(.cmd) }
+        return result
     }
 }

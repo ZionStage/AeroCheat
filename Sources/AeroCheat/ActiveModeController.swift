@@ -34,6 +34,8 @@ final class ActiveModeController {
     private var focusQueryGeneration = 0
 
     private(set) var lastSuggestion: Suggestion?
+    /// Called for every shortcut press AeroSpace reports, with the binding as written and its mode.
+    var onBindingTriggered: ((_ binding: String, _ mode: String) -> Void)?
 
     var isEnabled: Bool { defaults?.bool(forKey: Self.defaultsKey) ?? enabledInMemory }
     var streamStatus: AeroSpaceEventStream.Status { source.status }
@@ -99,6 +101,7 @@ final class ActiveModeController {
     func resume() { policy.resume() }
 
     private func handle(_ event: AeroEvent) {
+        if case .bindingTriggered(let binding, let mode) = event { onBindingTriggered?(binding, mode) }
         let now = ProcessInfo.processInfo.systemUptime
         if now - toastShownAt < Self.selfFeedbackGuard {
             guard case .bindingTriggered = event else { return }

@@ -10,6 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let activeMode: ActiveModeController
     private let settings: DisplaySettingsModel
     private let configSource: ConfigSourceModel
+    private let hotkeySettings: HotkeySettingsModel
+    /// `nil` in demo mode: presses are counted in memory only.
+    private let usageStorage: ShortcutUsageStorage?
+    private let hotkeyHint = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let activeToggle = NSMenuItem(title: "Active Mode", action: #selector(toggleActiveMode), keyEquivalent: "")
     private let activeStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let lastSuggestion = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -18,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let loginToggle = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
     private let loginStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let loginSettings = NSMenuItem(title: "Open Login Items Settings…", action: #selector(openLoginItemsSettings), keyEquivalent: "")
-    private lazy var settingsWindow = SettingsWindow(model: settings, configSource: configSource)
+    private lazy var settingsWindow = SettingsWindow(model: settings, configSource: configSource, hotkey: hotkeySettings)
     private lazy var panel: CheatsheetPanel = {
         let panel = CheatsheetPanel(model: model)
         panel.onDismiss = { [weak self] in self?.hidePanel() }
@@ -36,13 +40,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // The path setting is edited in memory and ignored: the sample config always stands in.
             configSource = ConfigSourceModel(storage: nil, loader: { _ in DemoScript.sampleConfigResult() })
             activeMode = ActiveModeController(defaults: nil, settings: settings, source: source, inputProbe: { source.currentInput }, windowProbe: nil)
+            hotkeySettings = HotkeySettingsModel(storage: nil)
+            usageStorage = nil
         } else {
             configSource = ConfigSourceModel()
             settings = DisplaySettingsModel()
             activeMode = ActiveModeController(settings: settings)
+            hotkeySettings = HotkeySettingsModel()
+            usageStorage = ShortcutUsageStorage()
         }
         model = CheatsheetModel(result: configSource.result)
+        model.hotkey = hotkeySettings.hotkey
+        model.usage = usageStorage?.load() ?? ShortcutUsage()
         super.init()
+        hotkeySettings.register = { [weak self] in self?.registerHotkey($0) ?? false }
+        hotkeySettings.aeroSpaceModes = { [weak self] in
+            guard case .loaded(_, let modes) = self?.configSource.result else { return [] }
+            return modes
+        }
+        hotkeySettings.addObserver { [weak self] in
+            self?.model.hotkey = $0
+            self?.refreshHotkeyHint()
+        }
+        activeMode.onBindingTriggered = { [weak self] binding, mode in
+            guard let self else { return }
+            self.model.usage.record(binding: binding, mode: mode)
+            self.usageStorage?.save(self.model.usage)
+        }
         // Every load (new path, menu reload) reaches the panel and the binding index of the active mode.
         configSource.addObserver { [weak self] result in
             self?.model.result = result
@@ -51,11 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        hotkey = GlobalHotkey(keyCode: HotkeyConfig.keyCode, modifiers: HotkeyConfig.modifiers) { [weak self] in
-            self?.togglePanel()
-        }
+        hotkey = makeHotkey(hotkeySettings.hotkey)
         if hotkey == nil {
-            NSLog("AeroCheat: could not register the global hotkey \(HotkeyConfig.display); use the menu bar item instead.")
+            NSLog("AeroCheat: could not register the global hotkey \(hotkeySettings.hotkey.display); use the menu bar item instead.")
         }
         configureStatusItem()
         activeMode.updateConfig(model.result)
@@ -82,9 +104,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let reload = NSMenuItem(title: "Reload AeroSpace Config", action: #selector(reloadConfig), keyEquivalent: "")
         reload.target = self
         menu.addItem(reload)
-        let hint = NSMenuItem(title: hotkey == nil ? "Hotkey unavailable" : "Hotkey: \(HotkeyConfig.display)", action: nil, keyEquivalent: "")
-        hint.isEnabled = false
-        menu.addItem(hint)
+        hotkeyHint.isEnabled = false
+        menu.addItem(hotkeyHint)
         menu.addItem(.separator())
         activeToggle.target = self
         activeStatus.isEnabled = false
@@ -103,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(quit)
         menu.delegate = self
         statusItem.menu = menu
+        refreshHotkeyHint()
         refreshActiveModeItems()
         refreshLoginItems()
     }
@@ -110,6 +132,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         refreshActiveModeItems()
         refreshLoginItems()
+    }
+
+    private func refreshHotkeyHint() {
+        hotkeyHint.title = hotkey == nil ? "Hotkey unavailable" : "Hotkey: \(hotkeySettings.hotkey.display)"
+    }
+
+    private func makeHotkey(_ combination: Hotkey) -> GlobalHotkey? {
+        GlobalHotkey(combination) { [weak self] in self?.togglePanel() }
+    }
+
+    /// Swaps the registered hotkey for `new`. When macOS refuses it, the current one is registered again.
+    private func registerHotkey(_ new: Hotkey) -> Bool {
+        hotkey = nil
+        if let registered = makeHotkey(new) {
+            hotkey = registered
+            return true
+        }
+        hotkey = makeHotkey(hotkeySettings.hotkey)
+        refreshHotkeyHint()
+        return false
     }
 
     private func refreshLoginItems() {
