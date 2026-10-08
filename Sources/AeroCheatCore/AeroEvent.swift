@@ -6,6 +6,8 @@ public enum AeroEvent: Equatable {
     case bindingTriggered(binding: String, mode: String)
     case focusChanged(windowId: Int, workspace: String)
     case focusedWorkspaceChanged(prev: String, workspace: String)
+    /// Focus moved to another display. `monitorId` is AeroSpace's 1-based monitor number.
+    case focusedMonitorChanged(monitorId: Int, workspace: String)
     case modeChanged(mode: String)
 
     /// Decodes one JSON line. Unknown events, unknown fields and malformed lines yield `nil`:
@@ -23,6 +25,9 @@ public enum AeroEvent: Equatable {
         case "focused-workspace-changed":
             guard let prev = object["prevWorkspace"] as? String, let workspace = object["workspace"] as? String else { return nil }
             return .focusedWorkspaceChanged(prev: prev, workspace: workspace)
+        case "focused-monitor-changed":
+            guard let monitorId = object["monitorId"] as? Int, let workspace = object["workspace"] as? String else { return nil }
+            return .focusedMonitorChanged(monitorId: monitorId, workspace: workspace)
         case "mode-changed":
             guard let mode = object["mode"] as? String else { return nil }
             return .modeChanged(mode: mode)
@@ -62,6 +67,8 @@ public struct InputRecency: Equatable {
     public var pointer: CGPoint?
     /// The pointer is over a notification (a banner or the Notification Center panel), so a click was on it.
     public var onNotification: Bool
+    /// The pointer is over the Dock and the settings ignore it, so the click was on a Dock icon.
+    public var onDock: Bool
 
     public init(
         sinceLeftMouseDown: TimeInterval,
@@ -69,7 +76,8 @@ public struct InputRecency: Equatable {
         sinceKeyDown: TimeInterval = .infinity,
         sinceFlagsChanged: TimeInterval = .infinity,
         pointer: CGPoint? = nil,
-        onNotification: Bool = false
+        onNotification: Bool = false,
+        onDock: Bool = false
     ) {
         self.sinceLeftMouseDown = sinceLeftMouseDown
         self.sinceLeftMouseUp = sinceLeftMouseUp
@@ -77,6 +85,7 @@ public struct InputRecency: Equatable {
         self.sinceFlagsChanged = sinceFlagsChanged
         self.pointer = pointer
         self.onNotification = onNotification
+        self.onDock = onDock
     }
 
     /// No click seen for a long time.

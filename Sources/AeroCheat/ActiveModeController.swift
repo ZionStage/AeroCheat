@@ -6,11 +6,11 @@ import AppKit
 /// Main queue only.
 final class ActiveModeController {
     static let defaultsKey = "activeModeEnabled"
-    /// Events this soon after our own toast are dropped (binding presses excepted): the toast must not feed itself.
+    /// Events this soon after our own toast are dropped (binding presses and display changes excepted): the toast must not feed itself.
     /// It only needs to cover the settling after the toast appears, so it stays far below the shortest
     /// configurable display duration (`DisplaySettings.durationRange`).
     private static let selfFeedbackGuard: TimeInterval = 0.5
-    /// How often the notification windows on screen are looked up while active mode is on. A banner stays up for
+    /// How often the notification and Dock windows on screen are looked up while active mode is on. A banner stays up for
     /// seconds, so a couple of looks per second are enough, and the probe thins them out when the machine is idle.
     private static let notificationPollInterval: TimeInterval = 0.5
 
@@ -20,9 +20,11 @@ final class ActiveModeController {
     private let settings: DisplaySettingsModel
     private let source: AeroEventSource
     private let inputProbe: () -> InputRecency
-    /// `nil` (demo mode) looks at no window and so never recognises a notification click.
+    /// `nil` (demo mode) looks at no window and so never recognises a notification or Dock click, nor an ignored app.
     private let windowProbe: (() -> [ScreenWindow])?
-    private var notifications = NotificationHitTest()
+    private let appProbe: ((Int) -> AppIdentity?)?
+    private var notifications = ScreenZoneHitTest(zone: .notifications)
+    private var dock = ScreenZoneHitTest(zone: .dock)
     private var notificationTimer: DispatchSourceTimer?
     private let toast = ToastPanel()
     private var classifier = BurstClassifier()
@@ -46,7 +48,8 @@ final class ActiveModeController {
         settings: DisplaySettingsModel,
         source: AeroEventSource = AeroSpaceEventStream(),
         inputProbe: @escaping () -> InputRecency = MouseInputProbe.recency,
-        windowProbe: (() -> [ScreenWindow])? = NotificationWindowProbe.windows
+        windowProbe: (() -> [ScreenWindow])? = ScreenWindowProbe.windows,
+        appProbe: ((Int) -> AppIdentity?)? = ScreenWindowProbe.app(ofWindow:)
     ) {
         self.defaults = defaults
         self.settings = settings
@@ -54,6 +57,7 @@ final class ActiveModeController {
         self.source = source
         self.inputProbe = inputProbe
         self.windowProbe = windowProbe
+        self.appProbe = appProbe
         source.onEvent = { [weak self] in self?.handle($0) }
         // The delays apply to the next suggestion; what the policy remembers stays.
         settings.addObserver { [weak self] in self?.policy.limits = $0.policyLimits }
@@ -86,6 +90,7 @@ final class ActiveModeController {
         focusQueryGeneration += 1
         settleWork?.cancel()
         _ = classifier.flush()
+        classifier.forgetBaselines()
         toast.dismiss()
     }
 
@@ -104,14 +109,19 @@ final class ActiveModeController {
         if case .bindingTriggered(let binding, let mode) = event { onBindingTriggered?(binding, mode) }
         let now = ProcessInfo.processInfo.systemUptime
         if now - toastShownAt < Self.selfFeedbackGuard {
-            guard case .bindingTriggered = event else { return }
+            switch event {
+            case .bindingTriggered, .focusedMonitorChanged: break
+            case .focusChanged, .focusedWorkspaceChanged: classifier.forgetFocus(); return
+            default: return
+            }
         }
         // Sampled when the event arrives, 1–3 ms after the fact, so a click still reads as recent.
         var input = inputProbe()
         if let windowProbe, input.sinceLastClick < classifier.mouseWindow {
             // The banner may already be gone, so it is also looked up in what the poll remembers.
-            notifications.observe(windowProbe(), at: now)
-            input.onNotification = notifications.isOverNotification(input.pointer, at: now)
+            observeZones(windowProbe(), at: now)
+            input.onNotification = notifications.isOver(input.pointer, at: now)
+            input.onDock = settings.settings.ignoreDock && dock.isOver(input.pointer, at: now)
         }
         if let verdict = classifier.ingest(event, at: now, input: input) {
             handle(verdict)
@@ -130,7 +140,7 @@ final class ActiveModeController {
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + Self.notificationPollInterval, repeating: Self.notificationPollInterval, leeway: .milliseconds(250))
         timer.setEventHandler { [weak self] in
-            self?.notifications.observe(windowProbe(), at: ProcessInfo.processInfo.systemUptime)
+            self?.observeZones(windowProbe(), at: ProcessInfo.processInfo.systemUptime)
         }
         timer.resume()
         notificationTimer = timer
@@ -140,6 +150,18 @@ final class ActiveModeController {
         notificationTimer?.cancel()
         notificationTimer = nil
         notifications.reset()
+        dock.reset()
+    }
+
+    private func observeZones(_ windows: [ScreenWindow], at time: TimeInterval) {
+        notifications.observe(windows, at: time)
+        dock.observe(windows, at: time)
+    }
+
+    /// Focus landed on a window of an application the settings ignore.
+    private func landedOnIgnoredApp(_ windowId: Int?) -> Bool {
+        guard let appProbe, let windowId, !settings.settings.ignoredApps.isEmpty else { return false }
+        return settings.settings.ignores(appProbe(windowId))
     }
 
     private func handle(_ verdict: BurstVerdict) {
@@ -147,9 +169,13 @@ final class ActiveModeController {
         case .keyboard(let binding):
             policy.recordKeyboard(binding: binding)
         case .mouse(let mouseSwitch):
-            guard let suggestion = resolver.suggestion(for: mouseSwitch) else { return }
+            guard !landedOnIgnoredApp(classifier.focusedWindowId), let suggestion = resolver.suggestion(for: mouseSwitch) else { return }
+            present(suggestion)
+        case .mouseMove(let move):
+            guard !landedOnIgnoredApp(move.windowId), let suggestion = resolver.suggestion(for: move) else { return }
             present(suggestion)
         case .mouseFocus(let focus):
+            guard !landedOnIgnoredApp(focus.windowId) else { return }
             suggestFocus(focus)
         case .ignored:
             break

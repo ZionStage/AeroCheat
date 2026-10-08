@@ -72,18 +72,21 @@ public struct SettingsColor: Equatable {
 public enum SuggestionKind: String, CaseIterable, Equatable {
     case workspaceSwitch
     case focusChange
+    case windowMove
 
     public var title: String {
         switch self {
         case .workspaceSwitch: return "Workspace switches"
         case .focusChange: return "Window focus"
+        case .windowMove: return "Window moves"
         }
     }
 
     public var detail: String {
         switch self {
-        case .workspaceSwitch: return "After you switch workspace with the mouse"
+        case .workspaceSwitch: return "After you switch workspace or display with the mouse"
         case .focusChange: return "After you click another window of the same workspace"
+        case .windowMove: return "After you drag a window to another display"
         }
     }
 }
@@ -126,6 +129,13 @@ public struct DisplaySettings: Equatable {
     /// Minimum seconds between two bubbles for the same shortcut.
     public var identicalTipInterval: Double = 30
 
+    // MARK: Ignore
+
+    /// A click on a Dock icon never produces a suggestion.
+    public var ignoreDock = true
+    /// Applications, by name or bundle identifier, whose windows never produce a suggestion when they get focus.
+    public var ignoredApps: [String] = []
+
     public init() {}
 
     public func isEnabled(_ kind: SuggestionKind) -> Bool { !disabledKinds.contains(kind) }
@@ -160,6 +170,7 @@ public struct DisplaySettings: Equatable {
         result.backgroundColor = backgroundColor?.normalized
         result.textColor = textColor?.normalized
         result.iconTint = iconTint?.normalized
+        result.ignoredApps = Self.appList(ignoredApps)
         return result
     }
 
@@ -181,6 +192,7 @@ extension Suggestion {
         switch trigger {
         case .workspaceSwitch: return .workspaceSwitch
         case .focusChange: return .focusChange
+        case .windowMove: return .windowMove
         }
     }
 }
@@ -194,6 +206,7 @@ public struct DisplaySettingsStorage {
     enum Key: String, CaseIterable {
         case anchor, horizontalMargin, verticalMargin, backgroundColor, textColor, iconTint
         case opacity, duration, scale, iconsForModifiers, disabledKinds, tipInterval, identicalTipInterval
+        case ignoreDock, ignoredApps
 
         var name: String { DisplaySettingsStorage.prefix + rawValue }
     }
@@ -221,6 +234,8 @@ public struct DisplaySettingsStorage {
         }
         s.tipInterval = number(.tipInterval) ?? s.tipInterval
         s.identicalTipInterval = number(.identicalTipInterval) ?? s.identicalTipInterval
+        if let flag = defaults.object(forKey: Key.ignoreDock.name) as? Bool { s.ignoreDock = flag }
+        if let names = defaults.object(forKey: Key.ignoredApps.name) as? [String] { s.ignoredApps = names }
         return s.normalized()
     }
 
@@ -239,6 +254,8 @@ public struct DisplaySettingsStorage {
         defaults.set(s.disabledKinds.map(\.rawValue).sorted(), forKey: Key.disabledKinds.name)
         defaults.set(s.tipInterval, forKey: Key.tipInterval.name)
         defaults.set(s.identicalTipInterval, forKey: Key.identicalTipInterval.name)
+        defaults.set(s.ignoreDock, forKey: Key.ignoreDock.name)
+        defaults.set(s.ignoredApps, forKey: Key.ignoredApps.name)
     }
 
     /// Forgets every stored value: the next `load()` returns the defaults.

@@ -44,6 +44,9 @@ final class DemoScriptTests: XCTestCase {
                 case .mouseFocus:
                     // Needs the layout probe, which the demo script does not simulate.
                     expectation = .silent("focus")
+                case .mouseMove:
+                    // The demo script has a single display, so no window is dragged to another one.
+                    expectation = .silent("move")
                 case .ignored(let reason):
                     expectation = .silent("\(reason)")
                 }

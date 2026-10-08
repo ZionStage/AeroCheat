@@ -12,6 +12,9 @@ public struct SettingsView: View {
     /// What the path field shows while it is being edited; applied on Return or when the field loses focus.
     @State private var pathDraft = ""
     @FocusState private var pathFocused: Bool
+    /// The ignored applications as typed, applied like the path.
+    @State private var appsDraft = ""
+    @FocusState private var appsFocused: Bool
 
     public init(
         model: DisplaySettingsModel,
@@ -34,6 +37,7 @@ public struct SettingsView: View {
                 lookSection
                 timingSection
                 contentSection
+                ignoreSection
             }
             .formStyle(.grouped)
             Divider()
@@ -149,6 +153,32 @@ public struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private var ignoreSection: some View {
+        Section("Ignore") {
+            Toggle(isOn: $model.settings.ignoreDock) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Clicks in the Dock")
+                    Text("Opening an app from the Dock is not a shortcut to learn").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            TextField("Applications", text: $appsDraft, prompt: Text("Finder, com.apple.Safari"))
+                .focused($appsFocused)
+                .onSubmit(commitApps)
+                .onAppear { appsDraft = model.settings.ignoredApps.joined(separator: ", ") }
+                .onChange(of: appsFocused) { focused in if !focused { commitApps() } }
+                .onChange(of: model.settings.ignoredApps) { appsDraft = $0.joined(separator: ", ") }
+            Text("No suggestion when focus lands on a window of these applications. Names or bundle identifiers, separated by commas.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func commitApps() {
+        let apps = DisplaySettings.appList(appsDraft)
+        if apps != model.settings.ignoredApps { model.settings.ignoredApps = apps }
+        appsDraft = apps.joined(separator: ", ")
     }
 
     // MARK: Config path

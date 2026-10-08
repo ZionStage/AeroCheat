@@ -154,4 +154,33 @@ final class ActionResolverTests: XCTestCase {
         let noPointer = FocusSwitch(windowId: 2, workspace: "1", previousWindowId: 1)
         XCTAssertNil(r.suggestion(for: noPointer, layout: .tiles(.horizontal), windowFrame: CGRect(x: 900, y: 300, width: 400, height: 300)))
     }
+
+    // MARK: several displays
+
+    func testCommandCanonicalisationForDisplays() {
+        XCTAssertEqual(Action(command: "move-node-to-workspace --focus-follows-window 3"), .moveToWorkspace("3"))
+        XCTAssertEqual(Action(command: "move-node-to-workspace next"), .other("move-node-to-workspace next"))
+        XCTAssertEqual(Action(command: "move-node-to-monitor --wrap-around next"), .moveToMonitor(.next))
+        XCTAssertEqual(Action(command: "focus-monitor prev"), .focusMonitor(.prev))
+        XCTAssertEqual(Action(command: "focus-monitor left"), .other("focus-monitor left"))
+    }
+
+    func testDraggedWindowSuggestsMovingItToTheWorkspaceElseTheDisplay() throws {
+        let move = WindowMove(windowId: 1, from: "1", to: "5", fromMonitor: 1, toMonitor: 2)
+        let both = try resolver("[mode.main.binding]\nalt-shift-5 = 'move-node-to-workspace 5'\nalt-shift-n = 'move-node-to-monitor next'")
+        let toWorkspace = try XCTUnwrap(both.suggestion(for: move))
+        XCTAssertEqual(toWorkspace.title, "move window to workspace 5")
+        XCTAssertEqual(toWorkspace.kind, .windowMove)
+        let monitorOnly = try resolver("[mode.main.binding]\nalt-shift-n = 'move-node-to-monitor next'\nalt-shift-p = 'move-node-to-monitor prev'")
+        XCTAssertEqual(monitorOnly.suggestion(for: move)?.title, "move window to the next display")
+        let unknownDisplay = WindowMove(windowId: 1, from: "1", to: "5", fromMonitor: nil, toMonitor: 2)
+        XCTAssertNil(monitorOnly.suggestion(for: unknownDisplay))
+    }
+
+    func testSwitchToAnotherDisplayFallsBackOnFocusMonitor() throws {
+        let r = try resolver("[mode.main.binding]\nalt-2 = 'workspace 2'\nalt-p = 'focus-monitor prev'")
+        XCTAssertEqual(r.suggestion(for: MouseSwitch(from: "5", to: "2", fromMonitor: 2, toMonitor: 1))?.title, "switch to workspace 2")
+        XCTAssertEqual(r.suggestion(for: MouseSwitch(from: "2", to: "4", fromMonitor: 2, toMonitor: 1))?.title, "focus the previous display")
+        XCTAssertNil(r.suggestion(for: MouseSwitch(from: "2", to: "4")))
+    }
 }

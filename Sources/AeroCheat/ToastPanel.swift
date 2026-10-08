@@ -39,7 +39,9 @@ final class ToastPanel: NSPanel {
         let size = hosting.fittingSize
         contentView = hosting
         setContentSize(size)
-        if let frame = NSScreen.main?.visibleFrame {
+        // The display under the pointer is where the mouse action just happened; `NSScreen.main` can be another one.
+        let mouse = NSEvent.mouseLocation
+        if let frame = (NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main)?.visibleFrame {
             setFrameOrigin(style.origin(for: size, in: frame))
         }
         hideWork?.cancel()

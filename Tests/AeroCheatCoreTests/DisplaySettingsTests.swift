@@ -214,4 +214,20 @@ final class DisplaySettingsTests: XCTestCase {
         XCTAssertEqual(preview.keys, "⌃⌥ 2")
         XCTAssertNotNil(preview.hint)
     }
+
+    // MARK: Ignore
+
+    func testIgnoredAppsMatchNameOrBundleIDAndRoundTrip() {
+        var s = DisplaySettings()
+        XCTAssertTrue(s.ignoreDock)
+        s.ignoredApps = DisplaySettings.appList(" Finder, com.apple.Safari,,\nfinder ")
+        XCTAssertEqual(s.ignoredApps, ["Finder", "com.apple.Safari"])
+        XCTAssertTrue(s.ignores(AppIdentity(name: "finder", bundleID: "com.apple.finder")))
+        XCTAssertTrue(s.ignores(AppIdentity(name: "Safari", bundleID: "COM.APPLE.SAFARI")))
+        XCTAssertFalse(s.ignores(AppIdentity(name: "Terminal", bundleID: "com.apple.Terminal")))
+        XCTAssertFalse(s.ignores(nil))
+        s.ignoreDock = false
+        storage.save(s)
+        XCTAssertEqual(storage.load(), s)
+    }
 }

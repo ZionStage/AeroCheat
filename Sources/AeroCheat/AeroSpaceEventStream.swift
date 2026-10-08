@@ -66,7 +66,7 @@ final class AeroSpaceEventStream {
     private func spawn(_ binary: String, _ gen: Int) {
         let child = Process()
         child.executableURL = URL(fileURLWithPath: binary)
-        child.arguments = ["subscribe", "--no-send-initial", "focus-changed", "focused-workspace-changed", "binding-triggered", "mode-changed"]
+        child.arguments = ["subscribe", "--no-send-initial", "focus-changed", "focused-workspace-changed", "focused-monitor-changed", "binding-triggered", "mode-changed"]
         child.standardInput = FileHandle.nullDevice
         let out = Pipe()
         let err = Pipe()

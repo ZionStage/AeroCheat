@@ -5,15 +5,34 @@ public enum FocusDirection: String, Hashable {
     case left, right, up, down
 }
 
+/// A display one step away in AeroSpace's order of displays (`next` and `prev` in `focus-monitor` and `move-node-to-monitor`).
+public enum MonitorStep: String, Hashable {
+    case next, prev
+
+    /// The step from one AeroSpace monitor number to the other, `nil` unless both are known and adjacent.
+    public init?(from: Int?, to: Int?) {
+        guard let from, let to else { return nil }
+        switch to - from {
+        case 1: self = .next
+        case -1: self = .prev
+        default: return nil
+        }
+    }
+}
+
 /// A canonical AeroSpace action, enough to tell which binding performs it.
 public enum Action: Hashable, CustomStringConvertible {
     case workspace(String)
     case workspaceBackAndForth
     case focus(FocusDirection)
+    case moveToWorkspace(String)
+    case focusMonitor(MonitorStep)
+    case moveToMonitor(MonitorStep)
     case other(String)
 
     /// Canonical form of one command: `--flags` are dropped, `workspace next|prev` stays `other`,
-    /// and so does `focus` with anything but a plain direction (`dfs-next`, a window id).
+    /// and so does `focus` with anything but a plain direction (`dfs-next`, a window id). Only `next` and `prev`
+    /// are kept for the monitor commands: a direction or a name cannot be checked against what the mouse did.
     public init(command: String) {
         let tokens = command.split(separator: " ").map(String.init)
         guard let head = tokens.first else { self = .other(command); return }
@@ -25,6 +44,12 @@ public enum Action: Hashable, CustomStringConvertible {
             self = .workspaceBackAndForth
         case "focus" where args.count == 1 && FocusDirection(rawValue: args[0]) != nil:
             self = .focus(FocusDirection(rawValue: args[0])!)
+        case "move-node-to-workspace" where args.count == 1 && !["next", "prev"].contains(args[0]):
+            self = .moveToWorkspace(args[0])
+        case "focus-monitor" where args.count == 1 && MonitorStep(rawValue: args[0]) != nil:
+            self = .focusMonitor(MonitorStep(rawValue: args[0])!)
+        case "move-node-to-monitor" where args.count == 1 && MonitorStep(rawValue: args[0]) != nil:
+            self = .moveToMonitor(MonitorStep(rawValue: args[0])!)
         default:
             self = .other(command)
         }
@@ -35,6 +60,9 @@ public enum Action: Hashable, CustomStringConvertible {
         case .workspace(let name): return "workspace \(name)"
         case .workspaceBackAndForth: return "workspace-back-and-forth"
         case .focus(let direction): return "focus \(direction.rawValue)"
+        case .moveToWorkspace(let name): return "move-node-to-workspace \(name)"
+        case .focusMonitor(let step): return "focus-monitor \(step.rawValue)"
+        case .moveToMonitor(let step): return "move-node-to-monitor \(step.rawValue)"
         case .other(let command): return command
         }
     }
@@ -46,6 +74,8 @@ public enum SuggestionTrigger: Equatable {
     case workspaceSwitch
     /// A mouse-driven focus change to another window of the same workspace.
     case focusChange
+    /// A window dragged to another display.
+    case windowMove
 }
 
 /// What to tell the user after a mouse-driven switch.
@@ -88,8 +118,13 @@ public struct Suggestion: Equatable {
     public var relatedKeys: [String] { companion.map { [$0.binding.combo.canonical] } ?? [] }
     public var keys: String { binding.combo.display }
     public var title: String {
-        if case .workspace(let name) = action { return "switch to workspace \(name)" }
-        return action.description
+        switch action {
+        case .workspace(let name): return "switch to workspace \(name)"
+        case .moveToWorkspace(let name): return "move window to workspace \(name)"
+        case .focusMonitor(let step): return "focus the \(step == .next ? "next" : "previous") display"
+        case .moveToMonitor(let step): return "move window to the \(step == .next ? "next" : "previous") display"
+        default: return action.description
+        }
     }
     public var hint: String? {
         if let companion { return "or \(companion.binding.combo.display) to \(companion.action.description)" }
@@ -121,11 +156,27 @@ public struct ActionResolver {
     public func binding(for action: Action) -> Binding? { index[action] }
 
     /// `nil` when the config has no binding for the switch: nothing the user could press, so stay silent.
+    /// A switch to another display falls back on `focus-monitor next|prev` when no binding names the workspace.
     public func suggestion(for mouseSwitch: MouseSwitch) -> Suggestion? {
         let action = Action.workspace(mouseSwitch.to)
-        guard let binding = index[action] else { return nil }
-        let back = mouseSwitch.returnsToPrevious ? index[.workspaceBackAndForth] : nil
-        return Suggestion(action: action, binding: binding, backAndForth: back)
+        if let binding = index[action] {
+            let back = mouseSwitch.returnsToPrevious ? index[.workspaceBackAndForth] : nil
+            return Suggestion(action: action, binding: binding, backAndForth: back)
+        }
+        guard let step = MonitorStep(from: mouseSwitch.fromMonitor, to: mouseSwitch.toMonitor),
+              let binding = index[.focusMonitor(step)] else { return nil }
+        return Suggestion(action: .focusMonitor(step), binding: binding)
+    }
+
+    /// The binding that sends a window where the mouse dragged it: `move-node-to-workspace` with the workspace of
+    /// the display it landed on, else `move-node-to-monitor next|prev`. `nil` when the config has neither.
+    public func suggestion(for move: WindowMove) -> Suggestion? {
+        let candidates = [Action.moveToWorkspace(move.to)]
+            + (MonitorStep(from: move.fromMonitor, to: move.toMonitor).map { [Action.moveToMonitor($0)] } ?? [])
+        for action in candidates {
+            if let binding = index[action] { return Suggestion(action: action, binding: binding, trigger: .windowMove) }
+        }
+        return nil
     }
 
     /// Whether the config binds any focus direction. Without one a focus suggestion is impossible.

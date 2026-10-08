@@ -34,14 +34,14 @@ The menu bar menu lets you show the cheatsheet, reload the config, turn **Active
 
 With Active Mode on, clicking over to workspace 3 with the mouse while your config has `alt-3 = 'workspace 3'` shows a bubble such as "⌥ 3 — switch to workspace 3".
 
-The Settings window sets the cheatsheet hotkey, the bubble position, colours and timing, and the path of your AeroSpace config. By default AeroCheat reads `~/.aerospace.toml`, then `~/.config/aerospace/aerospace.toml`.
+The Settings window sets the cheatsheet hotkey, the bubble position, colours and timing, what to ignore, and the path of your AeroSpace config. By default AeroCheat reads `~/.aerospace.toml`, then `~/.config/aerospace/aerospace.toml`.
 
 If the menu says AeroSpace is not running or too old, start it or update it to 0.21.0 or newer.
 
 ## Limits
 
-- It guesses whether a change came from the mouse, and can be wrong: a Dock click can trigger a suggestion.
-- Only the `main` binding mode and a single display are handled.
+- It guesses whether a change came from the mouse, and can be wrong. Dock clicks are ignored by default, and Settings can ignore chosen applications.
+- Only the `main` binding mode is handled.
 - Your AeroSpace config is only read, never written.
 - No network access and no telemetry.
 

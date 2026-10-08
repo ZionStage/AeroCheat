@@ -16,6 +16,10 @@ final class AeroEventTests: XCTestCase {
             .focusedWorkspaceChanged(prev: "1", workspace: "2")
         )
         XCTAssertEqual(AeroEvent.parse(line: #"{"_event":"mode-changed","mode":"service"}"#), .modeChanged(mode: "service"))
+        XCTAssertEqual(
+            AeroEvent.parse(line: #"{"_event":"focused-monitor-changed","monitorId":2,"workspace":"5"}"#),
+            .focusedMonitorChanged(monitorId: 2, workspace: "5")
+        )
     }
 
     func testToleratesUnknownEventsFieldsAndGarbage() {

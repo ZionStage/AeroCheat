@@ -188,4 +188,41 @@ final class BurstClassifierTests: XCTestCase {
         let second: [(TimeInterval, AeroEvent)] = [(4.95, .modeChanged(mode: "service")), focus(at: 5, 2)]
         XCTAssertEqual(classifyFocus(second, input: clicked), .ignored(.modeNotMain))
     }
+
+    // MARK: several displays
+
+    /// Window 1 focused on workspace 1 of display 1, then a click on display 2 with the given final focus.
+    private func classifyAcrossDisplays(endingOn windowId: Int, forgettingBaselines: Bool = false) -> BurstVerdict? {
+        var classifier = BurstClassifier()
+        _ = classifier.ingest(.focusedMonitorChanged(monitorId: 1, workspace: "1"), at: 0, input: idle)
+        _ = classifier.ingest(.focusChanged(windowId: 1, workspace: "1"), at: 0.01, input: idle)
+        _ = classifier.flush()
+        if forgettingBaselines { classifier.forgetBaselines() }
+        _ = classifier.ingest(.focusedWorkspaceChanged(prev: "1", workspace: "5"), at: 5, input: clicked)
+        _ = classifier.ingest(.focusedMonitorChanged(monitorId: 2, workspace: "5"), at: 5.001, input: clicked)
+        _ = classifier.ingest(.focusChanged(windowId: windowId, workspace: "5"), at: 5.002, input: clicked)
+        return classifier.flush()
+    }
+
+    func testClickOnAnotherDisplayIsASwitchBetweenDisplays() {
+        XCTAssertEqual(classifyAcrossDisplays(endingOn: 9), .mouse(MouseSwitch(from: "1", to: "5", fromMonitor: 1, toMonitor: 2)))
+    }
+
+    func testWindowKeepingFocusOnAnotherDisplayWasMoved() {
+        XCTAssertEqual(classifyAcrossDisplays(endingOn: 1), .mouseMove(WindowMove(windowId: 1, from: "1", to: "5", fromMonitor: 1, toMonitor: 2)))
+    }
+
+    func testForgottenDisplayLeavesTheStartingDisplayUnknown() {
+        XCTAssertEqual(
+            classifyAcrossDisplays(endingOn: 9, forgettingBaselines: true),
+            .mouse(MouseSwitch(from: "1", to: "5", fromMonitor: nil, toMonitor: 2))
+        )
+    }
+
+    func testForgottenFocusNeverReadsAClickAsAMove() {
+        XCTAssertEqual(
+            classifyAcrossDisplays(endingOn: 1, forgettingBaselines: true),
+            .mouse(MouseSwitch(from: "1", to: "5", fromMonitor: nil, toMonitor: 2))
+        )
+    }
 }
